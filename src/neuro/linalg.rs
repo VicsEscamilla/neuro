@@ -1,7 +1,8 @@
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+use ndarray::prelude::*;
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Mtx {
-    shape: (usize, usize),
-    raw: Vec<f64>
+    array: Array2<f64>
 }
 
 impl Mtx {
@@ -9,101 +10,57 @@ impl Mtx {
         if shape.0 * shape.1 != raw.len() {
             panic!("invalid shape");
         }
-        Mtx{shape, raw}
+        Mtx {array: Array::from_shape_vec(shape, raw).unwrap()}
     }
 
     pub fn trans(&self) -> Self {
-        let shape = (self.shape.1, self.shape.0);
-        let mut raw: Vec<f64> = Vec::with_capacity(self.raw.len());
-        for i in 0..self.shape.1 {
-            for j in 0..self.shape.0 {
-                raw.push(self.raw[j*self.shape.1 + i]);
-            }
-        }
-
-        Mtx {shape, raw}
+        Mtx {array:self.array.clone().reversed_axes()}
     }
 
     pub fn show(&self) {
-        for i in 0..self.shape.0 {
-            for j in 0..self.shape.1 {
-                print!("{:?} ", self.raw[i*self.shape.1 + j]);
-            }
-            println!();
-        }
+        println!("{:#?}", self.array);
     }
 
     pub fn shape(&self) -> (usize, usize) {
-        return self.shape;
+        let shape = self.array.shape();
+        (shape[0], shape[1])
     }
 
     pub fn add(&self, other: &Self) -> Self {
-        if self.shape != other.shape {
+        if self.array.shape() != other.array.shape() {
             panic!("invalid shape");
         }
 
         Mtx {
-            shape: (self.shape.0, self.shape.1),
-            raw: self.raw.iter()
-                .zip(&other.raw)
-                .map(|(&a, &b)| a + b)
-                .collect()
+            array: &self.array + &other.array
         }
     }
 
     pub fn add_vector(&self, vector: &Vec<f64>) -> Self {
-        if vector.len() != self.shape.1 {
+        if vector.len() != self.array.shape()[1] {
             panic!("invalid shape");
         }
 
-        let mut raw: Vec<f64> = Vec::with_capacity(self.raw.len());
-        for i in 0..self.raw.len() {
-            raw.push(self.raw[i] + vector[i%vector.len()]);
-        }
-
-        Mtx {shape: self.shape, raw}
+        Mtx {array: &self.array + &Array::from_shape_vec((1, vector.len()), vector.to_vec()).unwrap()}
     }
 
     pub fn dot(&self, other: &Self) -> Self {
-        if self.shape.1 != other.shape.0 {
+        if self.array.shape()[1] != other.array.shape()[0] {
             panic!("invalid shape");
         }
-
-        let shape = (self.shape.0, other.shape.1);
-        let mut raw: Vec<f64> = Vec::with_capacity(shape.0 * shape.1);
-        for i in 0..shape.0 {
-            for j in 0..shape.1 {
-                let mut sum = 0.;
-                for k in 0..self.shape.1 {
-                    let indexa = i*self.shape.1+k;
-                    let indexb = k*other.shape.1+j;
-                    sum += self.raw[indexa] * other.raw[indexb];
-                }
-                raw.push(sum);
-            }
-        }
-        Mtx {shape, raw}
+        Mtx {array:self.array.dot(&other.array)}
     }
 
     pub fn func<F: Fn(&f64)->f64>(&self, f: F) -> Self {
-        Mtx {
-            shape: self.shape,
-            raw: self.raw.iter().map(|x| f(x)).collect()
-        }
+        Mtx {array: self.array.map(|x| f(x))}
     }
 
     pub fn prod(&self, other: &Self) -> Self {
-        if self.shape != other.shape {
+        if self.array.shape() != other.array.shape() {
             panic!("invalid shape");
         }
 
-        Mtx {
-            shape: (self.shape.0, self.shape.1),
-            raw: self.raw.iter()
-                .zip(&other.raw)
-                .map(|(&a, &b)| a * b)
-                .collect()
-        }
+        Mtx {array: &self.array * &other.array}
     }
 
     pub fn sum(&self, dim: usize) -> Self {
@@ -112,31 +69,16 @@ impl Mtx {
         }
 
         let (rows, cols) = self.shape();
+
         if dim == 0 {
-            let mut raw: Vec<f64> = Vec::with_capacity(rows);
-            for i in 0..rows {
-                let mut sum = 0.;
-                for j in 0..cols {
-                    sum  += self.raw[i*cols + j];
-                }
-                raw.push(sum);
-            }
-            Mtx{shape:(rows, 1), raw}
+            Mtx{array:Array::from_shape_vec((1, cols), self.array.sum_axis(Axis(dim)).as_slice().unwrap().to_vec()).unwrap()}
         } else {
-            let mut raw: Vec<f64> = Vec::with_capacity(cols);
-            for j in 0..cols {
-                let mut sum = 0.;
-                for i in 0..rows {
-                    sum  += self.raw[i*cols + j];
-                }
-                raw.push(sum);
-            }
-            Mtx{shape:(1, cols), raw}
+            Mtx{array:Array::from_shape_vec((rows, 1), self.array.sum_axis(Axis(dim)).as_slice().unwrap().to_vec()).unwrap()}
         }
     }
 
     pub fn get_raw(&self) -> Vec<f64> {
-        return self.raw.clone();
+        return self.array.as_slice().unwrap().to_vec();
     }
 }
 
@@ -263,11 +205,11 @@ mod tests {
     fn test_sum() {
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
         let expected = Mtx::new((3, 1), vec![3., 7., 11.]);
-        assert_eq!(a.sum(0), expected);
+        assert_eq!(a.sum(1), expected);
 
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
         let expected = Mtx::new((1, 2), vec![9., 12.]);
-        assert_eq!(a.sum(1), expected);
+        assert_eq!(a.sum(0), expected);
     }
 
     #[test]
@@ -278,6 +220,6 @@ mod tests {
 
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
         let expected = Mtx::new((1, 2), vec![9., 12.]);
-        assert_eq!(a.sum(1), expected);
+        assert_eq!(a.sum(0), expected);
     }
 }

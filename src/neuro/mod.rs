@@ -135,7 +135,7 @@ impl Neuro {
                 });
 
         deriv_w.push(activations[activations.len()-2].trans().dot(&delta));
-        deriv_b.push(delta.sum(1));
+        deriv_b.push(delta.sum(0));
 
         for i in (1..self.layers.len()).rev() {
             delta = delta.dot(&self.weights[i].trans())
@@ -145,7 +145,7 @@ impl Neuro {
                     Activation::ReLU => activations[i].func(Neuro::relu_prime)
                 });
             deriv_w.insert(0, activations[i-1].trans().dot(&delta));
-            deriv_b.insert(0, delta.sum(1));
+            deriv_b.insert(0, delta.sum(0));
         }
 
         (deriv_w, deriv_b)
