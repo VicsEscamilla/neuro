@@ -1,9 +1,10 @@
-mod linalg;
+mod oclot;
+
 extern crate rand;
 
-use std::f64::consts::E;
+use std::f32::consts::E;
 use rand::Rng;
-pub use linalg::Mtx;
+pub use oclot::Mtx;
 
 #[derive(Debug)]
 pub enum Activation {
@@ -21,7 +22,8 @@ pub enum NeuroError {
 pub struct Neuro {
     layers: Vec<Layer>,
     weights: Vec<Mtx>,
-    biases: Vec<Vec<f64>>
+    biases: Vec<Vec<f32>>,
+    gpu: oclot::Oclot
 }
 
 #[derive(Debug)]
@@ -35,7 +37,8 @@ impl Neuro {
         Neuro {
             layers: vec![],
             weights: vec![],
-            biases: vec![]
+            biases: vec![],
+            gpu: oclot::Oclot::new()
         }
     }
 
@@ -48,13 +51,13 @@ impl Neuro {
         self
     }
 
-    pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f64, epochs:u64) -> Neuro {
+    pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f32, epochs:u64) -> Neuro {
         if self.layers.is_empty() {
             return self;
         }
 
         self.init_parameters(x.shape().1);
-        for _ in 0..epochs {
+        for epoch in 0..epochs {
             let (_, activations) = self.feedforward(x);
             let (dw, db) = self.backpropagation(&activations, &y);
             for i in 0..self.weights.len() {
@@ -64,11 +67,15 @@ impl Neuro {
                                    .map(|(&a, &b)| a+b)
                                    .collect();
             }
+
+            if epoch % 100 == 0 {
+                println!("epoch {}", epoch);
+            }
         }
         self
     }
 
-    pub fn predict(&self, x:&Mtx) -> Result<Mtx, NeuroError> {
+    pub fn predict(&mut self, x:&Mtx) -> Result<Mtx, NeuroError> {
         if self.weights.is_empty() {
             return Err(NeuroError::ModelNotTrained);
         }
@@ -92,7 +99,7 @@ impl Neuro {
         let rows = input_size;
         let cols = self.layers[0].neurons as usize;
         let mut w: Vec<Mtx> = Vec::with_capacity(self.layers.len()-1);
-        let mut b: Vec<Vec<f64>> = Vec::with_capacity(self.layers.len()-1);
+        let mut b: Vec<Vec<f32>> = Vec::with_capacity(self.layers.len()-1);
         w.push(Mtx::new((rows, cols), Neuro::random_vector(rows*cols)));
         b.push(Neuro::random_vector(cols));
         for i in 1..self.layers.len() {
@@ -105,14 +112,13 @@ impl Neuro {
         self.biases = b;
     }
 
-    fn feedforward(&self, x: &Mtx) -> (Vec<Mtx>, Vec<Mtx>) {
+    fn feedforward(&mut self, x: &Mtx) -> (Vec<Mtx>, Vec<Mtx>) {
         let mut caches = Vec::with_capacity(self.layers.len());
         let mut activations = Vec::with_capacity(self.layers.len()+1);
         activations.push(x.clone());
 
         for i in 0..self.layers.len() {
-            caches.push(activations[i]
-                        .dot(&self.weights[i])
+            caches.push(self.gpu.dot(&activations[i], &self.weights[i])
                         .add_vector(&self.biases[i]));
             activations.push(match &self.layers[i].activation {
                 Activation::Sigmoid => caches[i].func(Neuro::sigmoid),
@@ -123,7 +129,7 @@ impl Neuro {
         (caches, activations)
     }
 
-    fn backpropagation(&self, activations: &Vec<Mtx>, y:&Mtx) -> (Vec<Mtx>, Vec<Mtx>){
+    fn backpropagation(&mut self, activations: &Vec<Mtx>, y:&Mtx) -> (Vec<Mtx>, Vec<Mtx>){
         let mut deriv_b: Vec<Mtx> = Vec::with_capacity(activations.len());
         let mut deriv_w: Vec<Mtx> = Vec::with_capacity(activations.len());
 
@@ -134,45 +140,45 @@ impl Neuro {
                     Activation::ReLU => activations[activations.len()-1].func(Neuro::relu_prime)
                 });
 
-        deriv_w.push(activations[activations.len()-2].trans().dot(&delta));
+        deriv_w.push(self.gpu.dot(&activations[activations.len()-2].trans(), &delta));
         deriv_b.push(delta.sum(1));
 
         for i in (1..self.layers.len()).rev() {
-            delta = delta.dot(&self.weights[i].trans())
+            delta = self.gpu.dot(&delta, &self.weights[i].trans())
                 .prod(&match &self.layers[i].activation {
                     Activation::Sigmoid => activations[i].func(Neuro::sigmoid_prime),
                     Activation::Tanh => activations[i].func(Neuro::tanh_prime),
                     Activation::ReLU => activations[i].func(Neuro::relu_prime)
                 });
-            deriv_w.insert(0, activations[i-1].trans().dot(&delta));
+            deriv_w.insert(0, self.gpu.dot(&activations[i-1].trans(), &delta));
             deriv_b.insert(0, delta.sum(1));
         }
 
         (deriv_w, deriv_b)
     }
 
-    fn random_vector(size: usize) -> Vec<f64> {
+    fn random_vector(size: usize) -> Vec<f32> {
         let mut rng = rand::thread_rng();
-        vec![0.; size].iter().map(|_| rng.gen::<f64>()).collect()
+        vec![0.; size].iter().map(|_| rng.gen::<f32>()).collect()
     }
 
-    fn sigmoid(x: &f64) -> f64 {
+    fn sigmoid(x: &f32) -> f32 {
         1. / (1. + E.powf(-x))
     }
 
-    fn sigmoid_prime(x: &f64) -> f64 {
+    fn sigmoid_prime(x: &f32) -> f32 {
         x * (1. - x)
     }
 
-    fn tanh(x: &f64) -> f64 {
+    fn tanh(x: &f32) -> f32 {
         x.tanh()
     }
 
-    fn tanh_prime(x: &f64) -> f64 {
+    fn tanh_prime(x: &f32) -> f32 {
         1. - x*x
     }
 
-    fn relu(x: &f64) -> f64 {
+    fn relu(x: &f32) -> f32 {
         if *x > 0. {
             *x
         } else {
@@ -180,7 +186,7 @@ impl Neuro {
         }
     }
 
-    fn relu_prime(x: &f64) -> f64 {
+    fn relu_prime(x: &f32) -> f32 {
         if *x > 0. {
             1.
         } else {

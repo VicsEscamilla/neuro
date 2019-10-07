@@ -27,8 +27,8 @@ fn main() {
         l
     ]);
 
-    let xor = Neuro::new()
-        .add_layer(2, Activation::Tanh)
+    let mut xor = Neuro::new()
+        .add_layer(3, Activation::Tanh)
         .add_layer(1, Activation::Tanh)
         .train(&x, &y, 0.1, 10000);
 

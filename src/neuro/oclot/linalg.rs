@@ -1,11 +1,11 @@
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct Mtx {
     shape: (usize, usize),
-    raw: Vec<f64>
+    raw: Vec<f32>
 }
 
 impl Mtx {
-    pub fn new(shape: (usize, usize), raw: Vec<f64>) -> Self {
+    pub fn new(shape: (usize, usize), raw: Vec<f32>) -> Self {
         if shape.0 * shape.1 != raw.len() {
             panic!("invalid shape");
         }
@@ -14,7 +14,7 @@ impl Mtx {
 
     pub fn trans(&self) -> Self {
         let shape = (self.shape.1, self.shape.0);
-        let mut raw: Vec<f64> = Vec::with_capacity(self.raw.len());
+        let mut raw: Vec<f32> = Vec::with_capacity(self.raw.len());
         for i in 0..self.shape.1 {
             for j in 0..self.shape.0 {
                 raw.push(self.raw[j*self.shape.1 + i]);
@@ -51,12 +51,12 @@ impl Mtx {
         }
     }
 
-    pub fn add_vector(&self, vector: &Vec<f64>) -> Self {
+    pub fn add_vector(&self, vector: &Vec<f32>) -> Self {
         if vector.len() != self.shape.1 {
             panic!("invalid shape");
         }
 
-        let mut raw: Vec<f64> = Vec::with_capacity(self.raw.len());
+        let mut raw: Vec<f32> = Vec::with_capacity(self.raw.len());
         for i in 0..self.raw.len() {
             raw.push(self.raw[i] + vector[i%vector.len()]);
         }
@@ -70,7 +70,7 @@ impl Mtx {
         }
 
         let shape = (self.shape.0, other.shape.1);
-        let mut raw: Vec<f64> = Vec::with_capacity(shape.0 * shape.1);
+        let mut raw: Vec<f32> = Vec::with_capacity(shape.0 * shape.1);
         for i in 0..shape.0 {
             for j in 0..shape.1 {
                 let mut sum = 0.;
@@ -82,10 +82,11 @@ impl Mtx {
                 raw.push(sum);
             }
         }
+        // let raw = ocl_dot();
         Mtx {shape, raw}
     }
 
-    pub fn func<F: Fn(&f64)->f64>(&self, f: F) -> Self {
+    pub fn func<F: Fn(&f32)->f32>(&self, f: F) -> Self {
         Mtx {
             shape: self.shape,
             raw: self.raw.iter().map(|x| f(x)).collect()
@@ -113,7 +114,7 @@ impl Mtx {
 
         let (rows, cols) = self.shape();
         if dim == 0 {
-            let mut raw: Vec<f64> = Vec::with_capacity(rows);
+            let mut raw: Vec<f32> = Vec::with_capacity(rows);
             for i in 0..rows {
                 let mut sum = 0.;
                 for j in 0..cols {
@@ -123,7 +124,7 @@ impl Mtx {
             }
             Mtx{shape:(rows, 1), raw}
         } else {
-            let mut raw: Vec<f64> = Vec::with_capacity(cols);
+            let mut raw: Vec<f32> = Vec::with_capacity(cols);
             for j in 0..cols {
                 let mut sum = 0.;
                 for i in 0..rows {
@@ -135,10 +136,11 @@ impl Mtx {
         }
     }
 
-    pub fn get_raw(&self) -> Vec<f64> {
+    pub fn get_raw(&self) -> Vec<f32> {
         return self.raw.clone();
     }
 }
+
 
 #[cfg(test)]
 mod tests {
