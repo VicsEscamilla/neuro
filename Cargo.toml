@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 rand = "0.7.2"
+ocl = "0.19"
+ocl-extras = "0.1.0"

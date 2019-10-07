@@ -1,9 +1,10 @@
-mod linalg;
+mod oclote;
+
 extern crate rand;
 
-use std::f64::consts::E;
+use std::f32::consts::E;
 use rand::Rng;
-pub use linalg::Mtx;
+pub use oclote::Mtx;
 
 #[derive(Debug)]
 pub enum Activation {
@@ -21,7 +22,8 @@ pub enum NeuroError {
 pub struct Neuro {
     layers: Vec<Layer>,
     weights: Vec<Mtx>,
-    biases: Vec<Vec<f64>>
+    biases: Vec<Vec<f32>>,
+    gpu: oclote::Oclote
 }
 
 #[derive(Debug)]
@@ -35,7 +37,8 @@ impl Neuro {
         Neuro {
             layers: vec![],
             weights: vec![],
-            biases: vec![]
+            biases: vec![],
+            gpu: oclote::Oclote::new()
         }
     }
 
@@ -48,7 +51,7 @@ impl Neuro {
         self
     }
 
-    pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f64, epochs:u64) -> Neuro {
+    pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f32, epochs:u64) -> Neuro {
         if self.layers.is_empty() {
             return self;
         }
@@ -68,7 +71,7 @@ impl Neuro {
         self
     }
 
-    pub fn predict(&self, x:&Mtx) -> Result<Mtx, NeuroError> {
+    pub fn predict(&mut self, x:&Mtx) -> Result<Mtx, NeuroError> {
         if self.weights.is_empty() {
             return Err(NeuroError::ModelNotTrained);
         }
@@ -92,7 +95,7 @@ impl Neuro {
         let rows = input_size;
         let cols = self.layers[0].neurons as usize;
         let mut w: Vec<Mtx> = Vec::with_capacity(self.layers.len()-1);
-        let mut b: Vec<Vec<f64>> = Vec::with_capacity(self.layers.len()-1);
+        let mut b: Vec<Vec<f32>> = Vec::with_capacity(self.layers.len()-1);
         w.push(Mtx::new((rows, cols), Neuro::random_vector(rows*cols)));
         b.push(Neuro::random_vector(cols));
         for i in 1..self.layers.len() {
@@ -105,14 +108,13 @@ impl Neuro {
         self.biases = b;
     }
 
-    fn feedforward(&self, x: &Mtx) -> (Vec<Mtx>, Vec<Mtx>) {
+    fn feedforward(&mut self, x: &Mtx) -> (Vec<Mtx>, Vec<Mtx>) {
         let mut caches = Vec::with_capacity(self.layers.len());
         let mut activations = Vec::with_capacity(self.layers.len()+1);
         activations.push(x.clone());
 
         for i in 0..self.layers.len() {
-            caches.push(activations[i]
-                        .dot(&self.weights[i])
+            caches.push(activations[i].dot(&self.weights[i])
                         .add_vector(&self.biases[i]));
             activations.push(match &self.layers[i].activation {
                 Activation::Sigmoid => caches[i].func(Neuro::sigmoid),
@@ -151,28 +153,28 @@ impl Neuro {
         (deriv_w, deriv_b)
     }
 
-    fn random_vector(size: usize) -> Vec<f64> {
+    fn random_vector(size: usize) -> Vec<f32> {
         let mut rng = rand::thread_rng();
-        vec![0.; size].iter().map(|_| rng.gen::<f64>()).collect()
+        vec![0.; size].iter().map(|_| rng.gen::<f32>()).collect()
     }
 
-    fn sigmoid(x: &f64) -> f64 {
+    fn sigmoid(x: &f32) -> f32 {
         1. / (1. + E.powf(-x))
     }
 
-    fn sigmoid_prime(x: &f64) -> f64 {
+    fn sigmoid_prime(x: &f32) -> f32 {
         x * (1. - x)
     }
 
-    fn tanh(x: &f64) -> f64 {
+    fn tanh(x: &f32) -> f32 {
         x.tanh()
     }
 
-    fn tanh_prime(x: &f64) -> f64 {
+    fn tanh_prime(x: &f32) -> f32 {
         1. - x*x
     }
 
-    fn relu(x: &f64) -> f64 {
+    fn relu(x: &f32) -> f32 {
         if *x > 0. {
             *x
         } else {
@@ -180,7 +182,7 @@ impl Neuro {
         }
     }
 
-    fn relu_prime(x: &f64) -> f64 {
+    fn relu_prime(x: &f32) -> f32 {
         if *x > 0. {
             1.
         } else {
