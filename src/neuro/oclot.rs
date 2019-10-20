@@ -46,6 +46,8 @@ impl Oclot {
             .arg_named("C", None::<&ocl::Buffer<f32>>)
             .build().unwrap();
 
+        println!("{:#?}", pq.device().name().unwrap());
+
         Oclot {pq, kern}
     }
 

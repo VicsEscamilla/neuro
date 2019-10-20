@@ -1,3 +1,7 @@
+use rand::thread_rng;
+use rand::seq::SliceRandom;
+use std::f32::consts::E;
+
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct Mtx {
     shape: (usize, usize),
@@ -138,6 +142,31 @@ impl Mtx {
 
     pub fn get_raw(&self) -> Vec<f32> {
         return self.raw.clone();
+    }
+
+    pub fn reorderRows(&self, index: &Vec<usize>) -> Self {
+        let (rows, cols) = self.shape();
+        let mut raw: Vec<f32> = Vec::with_capacity(rows * cols);
+        for i in index {
+            for j in 0..cols {
+                raw.push(self.raw[i*cols + j]);
+            }
+        }
+
+        Mtx {shape:self.shape, raw}
+    }
+
+    pub fn softmax(&self) -> Self {
+        let (rows, cols) = self.shape();
+        let mut raw: Vec<f32> = Vec::with_capacity(rows * cols);
+        for i in 0..rows {
+            let sum: f32 = (&self.raw[i*cols..(i+1)*cols]).iter()
+                        .map(|x: &f32| E.powf(*x)).sum();
+            for j in 0..cols {
+                raw.push(E.powf(self.raw[i*cols + j])/sum);
+            }
+        }
+        Mtx {shape:self.shape, raw}
     }
 }
 
@@ -281,5 +310,26 @@ mod tests {
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
         let expected = Mtx::new((1, 2), vec![9., 12.]);
         assert_eq!(a.sum(1), expected);
+    }
+
+    #[test]
+    fn test_shuffle() {
+
+        let a = Mtx::new((4, 2), vec![1., 2., 3., 4., 5., 6., 7., 8.]);
+        let b = Mtx::new((4, 1), vec![1., 3., 5., 7.]);
+
+        let mut index: Vec<usize> = (0..4).collect();
+        index.shuffle(&mut thread_rng());
+
+        // assert this
+        a.reorderRows(&index).show();
+        b.reorderRows(&index).show();
+    }
+
+    #[test]
+    fn test_softmax() {
+        // assert this...
+        let a = Mtx::new((1, 8), vec![1., 2., 3., 4., 5., 6., 7., 8.]);
+        a.softmax().show();
     }
 }

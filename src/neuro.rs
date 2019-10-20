@@ -2,6 +2,7 @@ mod oclot;
 
 extern crate rand;
 
+use rand::seq::SliceRandom;
 use std::f32::consts::E;
 use rand::Rng;
 pub use oclot::Mtx;
@@ -51,24 +52,61 @@ impl Neuro {
         self
     }
 
-    pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f32, epochs:u64) -> Neuro {
+    pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f32, epochs:u64,
+        batch_size:usize) -> Neuro {
         if self.layers.is_empty() {
             return self;
         }
 
         self.init_parameters(x.shape().1);
         for epoch in 0..epochs {
-            let (_, activations) = self.feedforward(x);
-            let (dw, db) = self.backpropagation(&activations, &y);
-            for i in 0..self.weights.len() {
-                self.weights[i] = self.weights[i].add(&dw[i].func(|&x| x*learning_rate));
-                self.biases[i] = self.biases[i].iter()
-                                   .zip(&db[i].func(|x| (*x)*learning_rate).get_raw())
-                                   .map(|(&a, &b)| a+b)
-                                   .collect();
+            let mut order: Vec<usize> = (0..x.shape().0).collect();
+            order.shuffle(&mut rand::thread_rng());
+
+            let epoch_x_raw = x.reorderRows(&order).get_raw();
+            let epoch_y_raw = y.reorderRows(&order).get_raw();
+
+            let (rows, x_cols) = x.shape();
+            let (_, y_cols) = y.shape();
+
+            let mut _batch_size = 1;
+            if batch_size > 0 {
+                _batch_size = batch_size;
             }
 
-            if epoch % 100 == 0 {
+            let mut total_batches = rows/_batch_size;
+            if rows % _batch_size != 0 {
+                total_batches += 1;
+            }
+
+            for batch in 0..total_batches {
+                let x_first = batch*_batch_size*x_cols;
+                let mut x_last = x_first + _batch_size*x_cols;
+                if x_last > rows*x_cols {
+                    x_last = rows*x_cols;
+                }
+
+                let y_first = batch*_batch_size*y_cols;
+                let mut y_last = y_first + _batch_size*y_cols;
+                if y_last > rows*y_cols {
+                    y_last = rows*y_cols;
+                }
+
+                let mini_x = Mtx::new(((x_last-x_first)/x_cols, x_cols), epoch_x_raw[x_first..x_last].to_vec());
+                let mini_y = Mtx::new(((y_last-y_first)/y_cols, y_cols), epoch_y_raw[y_first..y_last].to_vec());
+                let (caches, activations) = self.feedforward(&mini_x);
+                let (dw, db) = self.backpropagation(&activations, &mini_y);
+                for i in 0..self.weights.len() {
+                    self.weights[i] = self.weights[i].add(
+                        &dw[i].func(|&x| x*(learning_rate/mini_x.shape().0 as f32)));
+                    self.biases[i] = self.biases[i].iter()
+                                       .zip(&db[i].func(|x| x*(learning_rate/mini_y.shape().0 as f32)).get_raw())
+                                       .map(|(&a, &b)| a+b)
+                                       .collect();
+                }
+            }
+
+            if epoch % 1 == 0 {
                 println!("epoch {}", epoch);
             }
         }
@@ -80,14 +118,7 @@ impl Neuro {
             return Err(NeuroError::ModelNotTrained);
         }
 
-        let (_, activations) = self.feedforward(x);
-        // Ok(activations[activations.len()-1].func(|x| {
-        //         if *x >= 0.5 {
-        //             1.
-        //         } else {
-        //             0.
-        //         }
-        // }))
+        let (caches, activations) = self.feedforward(x);
         Ok(activations[activations.len()-1].clone())
     }
 
@@ -133,7 +164,7 @@ impl Neuro {
         let mut deriv_b: Vec<Mtx> = Vec::with_capacity(activations.len());
         let mut deriv_w: Vec<Mtx> = Vec::with_capacity(activations.len());
 
-        let mut delta = y.add(&activations[activations.len()-1].func(|&x|-x))
+        let mut delta = activations[activations.len()-1].func(|&x|-x).add(&y)
             .prod(&match &self.layers[self.layers.len()-1].activation {
                     Activation::Sigmoid => activations[activations.len()-1].func(Neuro::sigmoid_prime),
                     Activation::Tanh => activations[activations.len()-1].func(Neuro::tanh_prime),
@@ -167,7 +198,7 @@ impl Neuro {
     }
 
     fn sigmoid_prime(x: &f32) -> f32 {
-        x * (1. - x)
+        Neuro::sigmoid(x) * (1. - Neuro::sigmoid(x))
     }
 
     fn tanh(x: &f32) -> f32 {
