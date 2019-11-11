@@ -4,8 +4,12 @@ version = "0.1.0"
 authors = ["vics"]
 edition = "2018"
 
+[lib]
+name = "neuro"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 rand = "0.7.2"
 ocl = "0.19"
+npy = "0.4.0"
