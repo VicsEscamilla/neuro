@@ -1,4 +1,4 @@
-mod neuro;
+extern crate neuro;
 
 extern crate npy;
 
@@ -14,7 +14,6 @@ fn load_file(file: &str) -> Vec<f32> {
 }
 
 fn main() {
-
     println!("LOADING train_x");
     let train_x_original: Vec<f32> = load_file("data/mnist_train_X.npy");
     println!("LOADING train_y");
@@ -41,18 +40,13 @@ fn main() {
     let mut digit = Neuro::new()
         .add_layer(30, Activation::Sigmoid)
         .add_layer(10, Activation::Sigmoid)
-        .train(&train_x, &train_y, 3.0, 10, 100);
+        .train(&train_x, &train_y, 3.0, 30, 100);
 
-    // println!("{:?}", digit);
-
-    // digit.predict(&train_x).unwrap().show();
     for i in 0..test_x.shape().0 {
         let ypos = i*10;
         let xpos = i*784;
         let expected = &test_y.get_raw()[ypos..ypos+10];
         let input = Mtx::new((1, 784), test_x.get_raw()[xpos..xpos+784].to_vec());
-        // println!("Input {:?}", input.shape());
-        // input.show();
         let got = digit.predict(&input).unwrap().get_raw();
         println!("Expected:  {:?}", expected);
         println!("Predicted: {:?}", got);
@@ -60,49 +54,4 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_secs(3));
     }
 
-    // //  XOR:
-    // //       X    Y
-    // //      0 0 | 0
-    // //      0 1 | 1
-    // //      1 0 | 1
-    // //      1 1 | 0
-
-    // let h = 1.;
-    // let l = -1.;
-
-    // let x = Mtx::new((4, 2), vec![
-    //     l, l,
-    //     l, h,
-    //     h, l,
-    //     h, h
-    // ]);
-
-    // let y = Mtx::new((4, 1), vec![
-    //     l,
-    //     h,
-    //     h,
-    //     l
-    // ]);
-
-    // let test = Mtx::new((4, 2), vec![
-    //     l, l,
-    //     l, h,
-    //     h, l,
-    //     h, h
-    // ]);
-
-    // let mut xor = Neuro::new()
-    //     // .add_layer(10000, Activation::Sigmoid)
-    //     // .add_layer(784, Activation::Sigmoid)
-    //     // .add_layer(30, Activation::Sigmoid)
-    //     // .add_layer(10, Activation::Sigmoid)
-    //     .add_layer(4, Activation::Tanh)
-    //     .add_layer(3, Activation::Tanh)
-    //     .add_layer(1, Activation::Tanh)
-    //     .train(&x, &y, 0.01, 10000, 100);
-
-    // // println!("NEURO {:#?}", xor);
-
-    // println!("{:?}",
-    //     xor.predict(&test).unwrap().get_raw());
 }
