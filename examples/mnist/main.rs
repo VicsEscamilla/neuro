@@ -40,18 +40,15 @@ fn main() {
     let mut digit = Neuro::new()
         .add_layer(30, Activation::Sigmoid)
         .add_layer(10, Activation::Sigmoid)
-        .train(&train_x, &train_y, 3.0, 30, 100);
+        .train(&train_x, &train_y, 3.0, 30, 100, 1);
 
     for i in 0..test_x.shape().0 {
-        let ypos = i*10;
-        let xpos = i*784;
-        let expected = &test_y.get_raw()[ypos..ypos+10];
-        let input = Mtx::new((1, 784), test_x.get_raw()[xpos..xpos+784].to_vec());
+        let expected = &test_y.get_row(i);
+        let input = Mtx::new((1, 784), test_x.get_row(i));
         let got = digit.predict(&input).unwrap().get_raw();
         println!("Expected:  {:?}", expected);
         println!("Predicted: {:?}", got);
         println!();
-        std::thread::sleep(std::time::Duration::from_secs(3));
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
-
 }

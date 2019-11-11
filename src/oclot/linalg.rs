@@ -1,5 +1,3 @@
-use rand::thread_rng;
-use rand::seq::SliceRandom;
 use std::f32::consts::E;
 
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
@@ -144,7 +142,16 @@ impl Mtx {
         return self.raw.clone();
     }
 
-    pub fn reorderRows(&self, index: &Vec<usize>) -> Self {
+    pub fn get_row(&self, index: usize) -> Vec<f32> {
+        let (rows, cols) = self.shape();
+        if index >= rows {
+            panic!("invalid row");
+        }
+        let i = index*cols;
+        return self.raw[i..i+cols].to_vec();
+    }
+
+    pub fn reorder_rows(&self, index: &Vec<usize>) -> Self {
         let (rows, cols) = self.shape();
         let mut raw: Vec<f32> = Vec::with_capacity(rows * cols);
         for i in index {
@@ -173,6 +180,8 @@ impl Mtx {
 
 #[cfg(test)]
 mod tests {
+    use rand::thread_rng;
+    use rand::seq::SliceRandom;
     use super::*;
 
     #[test]
@@ -322,8 +331,8 @@ mod tests {
         index.shuffle(&mut thread_rng());
 
         // assert this
-        a.reorderRows(&index).show();
-        b.reorderRows(&index).show();
+        a.reorder_rows(&index).show();
+        b.reorder_rows(&index).show();
     }
 
     #[test]
@@ -331,5 +340,13 @@ mod tests {
         // assert this...
         let a = Mtx::new((1, 8), vec![1., 2., 3., 4., 5., 6., 7., 8.]);
         a.softmax().show();
+    }
+
+    #[test]
+    fn test_get_row() {
+        let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
+        assert_eq!(a.get_row(0), vec![1., 2.]);
+        assert_eq!(a.get_row(1), vec![3., 4.]);
+        assert_eq!(a.get_row(2), vec![5., 6.]);
     }
 }

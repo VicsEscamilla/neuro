@@ -53,18 +53,22 @@ impl Neuro {
     }
 
     pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f32, epochs:u64,
-        batch_size:usize) -> Neuro {
+        batch_size:usize, show_n_epochs:u64) -> Neuro {
         if self.layers.is_empty() {
             return self;
         }
 
         self.init_parameters(x.shape().1);
         for epoch in 0..epochs {
+            if epoch % show_n_epochs == 0 {
+                println!("epoch {} of {}", epoch, epochs);
+            }
+
             let mut order: Vec<usize> = (0..x.shape().0).collect();
             order.shuffle(&mut rand::thread_rng());
 
-            let epoch_x_raw = x.reorderRows(&order).get_raw();
-            let epoch_y_raw = y.reorderRows(&order).get_raw();
+            let epoch_x_raw = x.reorder_rows(&order).get_raw();
+            let epoch_y_raw = y.reorder_rows(&order).get_raw();
 
             let (rows, x_cols) = x.shape();
             let (_, y_cols) = y.shape();
@@ -94,7 +98,7 @@ impl Neuro {
 
                 let mini_x = Mtx::new(((x_last-x_first)/x_cols, x_cols), epoch_x_raw[x_first..x_last].to_vec());
                 let mini_y = Mtx::new(((y_last-y_first)/y_cols, y_cols), epoch_y_raw[y_first..y_last].to_vec());
-                let (caches, activations) = self.feedforward(&mini_x);
+                let (_, activations) = self.feedforward(&mini_x);
                 let (dw, db) = self.backpropagation(&activations, &mini_y);
                 for i in 0..self.weights.len() {
                     self.weights[i] = self.weights[i].add(
@@ -105,10 +109,6 @@ impl Neuro {
                                        .collect();
                 }
             }
-
-            if epoch % 1 == 0 {
-                println!("epoch {}", epoch);
-            }
         }
         self
     }
@@ -118,7 +118,7 @@ impl Neuro {
             return Err(NeuroError::ModelNotTrained);
         }
 
-        let (caches, activations) = self.feedforward(x);
+        let (_, activations) = self.feedforward(x);
         Ok(activations[activations.len()-1].clone())
     }
 
