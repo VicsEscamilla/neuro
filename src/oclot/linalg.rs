@@ -142,13 +142,13 @@ impl Mtx {
         return self.raw.clone();
     }
 
-    pub fn get_row(&self, index: usize) -> Vec<f32> {
+    pub fn get_row(&self, index: usize) -> Self {
         let (rows, cols) = self.shape();
         if index >= rows {
             panic!("invalid row");
         }
         let i = index*cols;
-        return self.raw[i..i+cols].to_vec();
+        return Mtx::new((1, cols), self.raw[i..i+cols].to_vec());
     }
 
     pub fn reorder_rows(&self, index: &Vec<usize>) -> Self {

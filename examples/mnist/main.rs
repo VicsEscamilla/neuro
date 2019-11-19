@@ -40,15 +40,20 @@ fn main() {
     let mut digit = Neuro::new()
         .add_layer(30, Activation::Sigmoid)
         .add_layer(10, Activation::Sigmoid)
-        .train(&train_x, &train_y, 3.0, 30, 100, 1);
+        .train(&train_x, &train_y, 3.0, 50, 100, 1);
 
-    for i in 0..test_x.shape().0 {
+    let mut successes = 0;
+    let total_tests = test_x.shape().0;
+    println!("Evaluating...");
+    for i in 0..total_tests {
         let expected = &test_y.get_row(i);
-        let input = Mtx::new((1, 784), test_x.get_row(i));
-        let got = digit.predict(&input).unwrap().get_raw();
-        println!("Expected:  {:?}", expected);
-        println!("Predicted: {:?}", got);
-        println!();
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        let input = test_x.get_row(i);
+        let got = digit.predict(&input).unwrap().func(|x| {
+                if *x < 0.5 { 0. } else { 1. }
+            });
+        if got.add(&expected.func(|x| -x)).sum(0).get_raw()[0] == 0.0 {
+            successes += 1;
+        }
     }
+    println!("Accuracy: {}", successes as f32 / total_tests as f32);
 }
