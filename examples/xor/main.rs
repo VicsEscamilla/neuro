@@ -1,8 +1,6 @@
 extern crate neuro;
 
-extern crate npy;
-
-use neuro::{Neuro, Activation, Mtx};
+use neuro::{Neuro, Activation, Mtx, Runtime};
 
 fn main() {
 
@@ -37,7 +35,7 @@ fn main() {
         h, h
     ]);
 
-    let mut xor = Neuro::new()
+    let mut xor = Neuro::new(Runtime::CPU)
         .add_layer(3, Activation::Tanh)
         .add_layer(1, Activation::Tanh)
         .train(&x, &y, 0.01, 10000, 100, 1000);

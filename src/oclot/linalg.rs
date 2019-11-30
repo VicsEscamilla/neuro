@@ -345,8 +345,8 @@ mod tests {
     #[test]
     fn test_get_row() {
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
-        assert_eq!(a.get_row(0), vec![1., 2.]);
-        assert_eq!(a.get_row(1), vec![3., 4.]);
-        assert_eq!(a.get_row(2), vec![5., 6.]);
+        assert_eq!(a.get_row(0).get_raw(), vec![1., 2.]);
+        assert_eq!(a.get_row(1).get_raw(), vec![3., 4.]);
+        assert_eq!(a.get_row(2).get_raw(), vec![5., 6.]);
     }
 }

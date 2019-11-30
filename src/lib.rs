@@ -15,6 +15,12 @@ pub enum Activation {
 }
 
 #[derive(Debug)]
+pub enum Runtime {
+    CPU,
+    GPU
+}
+
+#[derive(Debug)]
 pub enum NeuroError {
     ModelNotTrained
 }
@@ -24,7 +30,7 @@ pub struct Neuro {
     layers: Vec<Layer>,
     weights: Vec<Mtx>,
     biases: Vec<Vec<f32>>,
-    gpu: oclot::Oclot
+    gpu: Option<oclot::Oclot>
 }
 
 #[derive(Debug)]
@@ -34,12 +40,15 @@ struct Layer {
 }
 
 impl Neuro {
-    pub fn new() -> Neuro {
+    pub fn new(runtime:Runtime) -> Neuro {
         Neuro {
             layers: vec![],
             weights: vec![],
             biases: vec![],
-            gpu: oclot::Oclot::new()
+            gpu: match runtime {
+                Runtime::CPU => None,
+                Runtime::GPU => Some(oclot::Oclot::new())
+            }
         }
     }
 
@@ -149,8 +158,16 @@ impl Neuro {
         activations.push(x.clone());
 
         for i in 0..self.layers.len() {
-            caches.push(self.gpu.dot(&activations[i], &self.weights[i])
-                        .add_vector(&self.biases[i]));
+            match &mut self.gpu {
+                Some(gpu) => {
+                    caches.push(gpu.dot(&activations[i], &self.weights[i])
+                                .add_vector(&self.biases[i]));
+                },
+                None => {
+                    caches.push(activations[i].dot(&self.weights[i])
+                                .add_vector(&self.biases[i]));
+                }
+            };
             activations.push(match &self.layers[i].activation {
                 Activation::Sigmoid => caches[i].func(Neuro::sigmoid),
                 Activation::Tanh => caches[i].func(Neuro::tanh),
@@ -171,17 +188,33 @@ impl Neuro {
                     Activation::ReLU => activations[activations.len()-1].func(Neuro::relu_prime)
                 });
 
-        deriv_w.push(self.gpu.dot(&activations[activations.len()-2].trans(), &delta));
+        match &mut self.gpu {
+            Some(gpu) => deriv_w.push(gpu.dot(&activations[activations.len()-2].trans(), &delta)),
+            None => deriv_w.push(activations[activations.len()-2].trans().dot(&delta))
+        };
         deriv_b.push(delta.sum(1));
 
         for i in (1..self.layers.len()).rev() {
-            delta = self.gpu.dot(&delta, &self.weights[i].trans())
-                .prod(&match &self.layers[i].activation {
-                    Activation::Sigmoid => activations[i].func(Neuro::sigmoid_prime),
-                    Activation::Tanh => activations[i].func(Neuro::tanh_prime),
-                    Activation::ReLU => activations[i].func(Neuro::relu_prime)
-                });
-            deriv_w.insert(0, self.gpu.dot(&activations[i-1].trans(), &delta));
+            match &mut self.gpu {
+                Some(gpu) => {
+                    delta = gpu.dot(&delta, &self.weights[i].trans())
+                        .prod(&match &self.layers[i].activation {
+                            Activation::Sigmoid => activations[i].func(Neuro::sigmoid_prime),
+                            Activation::Tanh => activations[i].func(Neuro::tanh_prime),
+                            Activation::ReLU => activations[i].func(Neuro::relu_prime)
+                        });
+                    deriv_w.insert(0, gpu.dot(&activations[i-1].trans(), &delta));
+                },
+                None => {
+                    delta = delta.dot(&self.weights[i].trans())
+                        .prod(&match &self.layers[i].activation {
+                            Activation::Sigmoid => activations[i].func(Neuro::sigmoid_prime),
+                            Activation::Tanh => activations[i].func(Neuro::tanh_prime),
+                            Activation::ReLU => activations[i].func(Neuro::relu_prime)
+                        });
+                    deriv_w.insert(0, activations[i-1].trans().dot(&delta));
+                }
+            };
             deriv_b.insert(0, delta.sum(1));
         }
 
