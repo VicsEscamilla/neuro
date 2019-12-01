@@ -28,7 +28,7 @@ pub struct Neuro {
     weights: Vec<Mtx>,
     biases: Vec<Vec<f32>>,
     gpu: Option<oclot::Oclot>,
-    on_epoch_fn: Option<Box<dyn Fn(u64, u64)>>
+    on_epoch_fn: Option<Box<dyn Fn(u64, u64, f32, f32)>>
 }
 
 struct Layer {
@@ -59,18 +59,14 @@ impl Neuro {
         self
     }
 
-    pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f32, epochs:u64,
-        batch_size:usize) -> Self {
+    pub fn train(mut self, x:&Mtx, y:&Mtx, test_x:&Mtx, test_y:&Mtx,
+        learning_rate:f32, epochs:u64, batch_size:usize) -> Self {
         if self.layers.is_empty() {
             return self;
         }
 
         self.init_parameters(x.shape().1);
         for epoch in 0..epochs {
-            if let Some(func) = &self.on_epoch_fn {
-                func(epoch, epochs);
-            }
-
             let mut order: Vec<usize> = (0..x.shape().0).collect();
             order.shuffle(&mut rand::thread_rng());
 
@@ -116,6 +112,25 @@ impl Neuro {
                                        .collect();
                 }
             }
+
+            let get_msr = &mut |x:&Mtx, y:&Mtx| {
+                let prediction = self.predict(&x).unwrap();
+                let (tests, classes) = y.shape();
+                prediction.add(&y.func(|x|-x))
+                    .func(|x|x*x)
+                    .sum(0)
+                    .func(|x|x/classes as f32)
+                    .sum(1)
+                    .func(|x|x/tests as f32)
+                    .get_raw()[0]
+            };
+
+            // calculate loss
+            let train_msr = get_msr(&x, &y);
+            let test_msr = get_msr(&test_x, &test_y);
+            if let Some(func) = &self.on_epoch_fn {
+                func(epoch, epochs, train_msr, test_msr);
+            }
         }
         self
     }
@@ -129,10 +144,11 @@ impl Neuro {
         Ok(activations[activations.len()-1].clone())
     }
 
-    pub fn on_epoch<F:Fn(u64, u64) + 'static>(mut self, func: F) -> Self {
+    pub fn on_epoch<F:Fn(u64, u64, f32, f32) + 'static>(mut self, func: F) -> Self {
         self.on_epoch_fn = Some(Box::new(func));
         self
     }
+
 
     fn init_parameters(&mut self, input_size: usize) {
         if self.layers.is_empty() {

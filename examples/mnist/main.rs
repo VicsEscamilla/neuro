@@ -14,28 +14,29 @@ fn load_file(file: &str) -> Vec<f32> {
 }
 
 fn main() {
-    let train_x_original: Vec<f32> = load_file("data/mnist_train_X.npy");
-    let train_y_original: Vec<f32> = load_file("data/mnist_train_y.npy");
-    let test_x_original: Vec<f32> = load_file("data/mnist_test_X.npy");
-    let test_y_original: Vec<f32> = load_file("data/mnist_test_y.npy");
+    let train_x_original: Vec<f32> = load_file("data/mnist_train_X.npy")[0..5000*784].to_vec();
+    let train_y_original: Vec<f32> = load_file("data/mnist_train_y.npy")[0..5000*10].to_vec();
+    let test_x_original: Vec<f32> = load_file("data/mnist_test_X.npy")[0..1000*784].to_vec();
+    let test_y_original: Vec<f32> = load_file("data/mnist_test_y.npy")[0..1000*10].to_vec();
 
     println!("train_X -> {}", train_x_original.len());
     println!("train_y -> {}", train_y_original.len());
     println!("test_X -> {}", test_x_original.len());
     println!("test_X -> {}", test_y_original.len());
 
-    let train_x = Mtx::new((50000, 784), train_x_original);
-    let train_y = Mtx::new((50000, 10), train_y_original);
-    let test_x = Mtx::new((10000, 784), test_x_original);
-    let test_y = Mtx::new((10000, 10), test_y_original);
+    let train_x = Mtx::new((5000, 784), train_x_original);
+    let train_y = Mtx::new((5000, 10), train_y_original);
+    let test_x = Mtx::new((1000, 784), test_x_original);
+    let test_y = Mtx::new((1000, 10), test_y_original);
 
     let mut digit = Neuro::new(Runtime::GPU)
         .add_layer(30, Activation::Sigmoid)
         .add_layer(10, Activation::Sigmoid)
-        .on_epoch(|epoch, total| {
-            println!("epoch {} of {}", epoch, total);
+        .on_epoch(|epoch, total_epochs, train_mse, test_mse| {
+            println!("epoch {} of {} -> train_mse: {}, test_mse: {}",
+                epoch, total_epochs, train_mse, test_mse);
         })
-        .train(&train_x, &train_y, 3.0, 30, 100);
+        .train(&train_x, &train_y, &test_x, &test_y, 3.0, 30, 100);
 
     let mut successes = 0;
     let total_tests = test_x.shape().0;

@@ -38,12 +38,13 @@ fn main() {
     let mut xor = Neuro::new(Runtime::CPU)
         .add_layer(3, Activation::Tanh)
         .add_layer(1, Activation::Tanh)
-        .on_epoch(|epoch, total_epochs| {
+        .on_epoch(|epoch, total_epochs, train_mse, test_mse| {
             if epoch % 1000 == 0 {
-                println!("epoch {} of {}", epoch, total_epochs);
+                println!("epoch {} of {} -> train_mse: {}, test_mse: {}",
+                    epoch, total_epochs, train_mse, test_mse);
             }
         })
-        .train(&x, &y, 0.01, 10000, 100);
+        .train(&x, &y, &test, &y, 0.01, 10000, 100);
 
     println!("{:?}", xor.predict(&test).unwrap().get_raw());
 }
