@@ -32,7 +32,10 @@ fn main() {
     let mut digit = Neuro::new(Runtime::GPU)
         .add_layer(30, Activation::Sigmoid)
         .add_layer(10, Activation::Sigmoid)
-        .train(&train_x, &train_y, 3.0, 30, 100, 1);
+        .on_epoch(|epoch, total| {
+            println!("epoch {} of {}", epoch, total);
+        })
+        .train(&train_x, &train_y, 3.0, 30, 100);
 
     let mut successes = 0;
     let total_tests = test_x.shape().0;

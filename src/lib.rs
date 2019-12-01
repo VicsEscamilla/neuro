@@ -7,14 +7,12 @@ use std::f32::consts::E;
 use rand::Rng;
 pub use oclot::Mtx;
 
-#[derive(Debug)]
 pub enum Activation {
     Sigmoid,
     Tanh,
     ReLU
 }
 
-#[derive(Debug)]
 pub enum Runtime {
     CPU,
     GPU
@@ -25,22 +23,21 @@ pub enum NeuroError {
     ModelNotTrained
 }
 
-#[derive(Debug)]
 pub struct Neuro {
     layers: Vec<Layer>,
     weights: Vec<Mtx>,
     biases: Vec<Vec<f32>>,
-    gpu: Option<oclot::Oclot>
+    gpu: Option<oclot::Oclot>,
+    on_epoch_fn: Option<Box<dyn Fn(u64, u64)>>
 }
 
-#[derive(Debug)]
 struct Layer {
     neurons: u64,
     activation: Activation,
 }
 
 impl Neuro {
-    pub fn new(runtime:Runtime) -> Neuro {
+    pub fn new(runtime:Runtime) -> Self {
         Neuro {
             layers: vec![],
             weights: vec![],
@@ -48,11 +45,12 @@ impl Neuro {
             gpu: match runtime {
                 Runtime::CPU => None,
                 Runtime::GPU => Some(oclot::Oclot::new())
-            }
+            },
+            on_epoch_fn: None
         }
     }
 
-    pub fn add_layer(mut self, neurons:u64, activation:Activation) -> Neuro {
+    pub fn add_layer(mut self, neurons:u64, activation:Activation) -> Self {
         if self.layers.is_empty() {
             self.layers = vec![Layer{neurons, activation}];
         } else {
@@ -62,15 +60,15 @@ impl Neuro {
     }
 
     pub fn train(mut self, x:&Mtx, y:&Mtx, learning_rate:f32, epochs:u64,
-        batch_size:usize, show_n_epochs:u64) -> Neuro {
+        batch_size:usize) -> Self {
         if self.layers.is_empty() {
             return self;
         }
 
         self.init_parameters(x.shape().1);
         for epoch in 0..epochs {
-            if epoch % show_n_epochs == 0 {
-                println!("epoch {} of {}", epoch, epochs);
+            if let Some(func) = &self.on_epoch_fn {
+                func(epoch, epochs);
             }
 
             let mut order: Vec<usize> = (0..x.shape().0).collect();
@@ -129,6 +127,11 @@ impl Neuro {
 
         let (_, activations) = self.feedforward(x);
         Ok(activations[activations.len()-1].clone())
+    }
+
+    pub fn on_epoch<F:Fn(u64, u64) + 'static>(mut self, func: F) -> Self {
+        self.on_epoch_fn = Some(Box::new(func));
+        self
     }
 
     fn init_parameters(&mut self, input_size: usize) {

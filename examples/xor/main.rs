@@ -38,7 +38,12 @@ fn main() {
     let mut xor = Neuro::new(Runtime::CPU)
         .add_layer(3, Activation::Tanh)
         .add_layer(1, Activation::Tanh)
-        .train(&x, &y, 0.01, 10000, 100, 1000);
+        .on_epoch(|epoch, total_epochs| {
+            if epoch % 1000 == 0 {
+                println!("epoch {} of {}", epoch, total_epochs);
+            }
+        })
+        .train(&x, &y, 0.01, 10000, 100);
 
     println!("{:?}", xor.predict(&test).unwrap().get_raw());
 }
