@@ -28,7 +28,7 @@ pub struct Neuro {
     weights: Vec<Mtx>,
     biases: Vec<Vec<f32>>,
     gpu: Option<oclot::Oclot>,
-    on_epoch_fn: Option<Box<dyn Fn(u64, u64, f32, f32)>>
+    on_epoch_fn: Option<Box<dyn FnMut(u64, u64, f32, f32)>>
 }
 
 struct Layer {
@@ -120,6 +120,7 @@ impl Neuro {
                     .func(|x|x*x)
                     .sum(0)
                     .func(|x|x/classes as f32)
+                    .func(|x|x.sqrt())
                     .sum(1)
                     .func(|x|x/tests as f32)
                     .get_raw()[0]
@@ -128,7 +129,7 @@ impl Neuro {
             // calculate loss
             let train_msr = get_msr(&x, &y);
             let test_msr = get_msr(&test_x, &test_y);
-            if let Some(func) = &self.on_epoch_fn {
+            if let Some(func) = &mut self.on_epoch_fn {
                 func(epoch, epochs, train_msr, test_msr);
             }
         }
@@ -144,7 +145,7 @@ impl Neuro {
         Ok(activations[activations.len()-1].clone())
     }
 
-    pub fn on_epoch<F:Fn(u64, u64, f32, f32) + 'static>(mut self, func: F) -> Self {
+    pub fn on_epoch<F:FnMut(u64, u64, f32, f32) + 'static>(mut self, func: F) -> Self {
         self.on_epoch_fn = Some(Box::new(func));
         self
     }
