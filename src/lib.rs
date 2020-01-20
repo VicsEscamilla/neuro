@@ -2,15 +2,19 @@ mod oclot;
 
 extern crate rand;
 
+use std::io::Write;
+use std::io::Read;
+use serde::{Serialize, Deserialize};
 use rand::seq::SliceRandom;
 use std::f32::consts::E;
 use rand::Rng;
 pub use oclot::Mtx;
 
+#[derive(Serialize, Deserialize, Clone)]
 pub enum Activation {
-    Sigmoid,
-    Tanh,
-    ReLU
+    Sigmoid = 1,
+    Tanh = 2,
+    ReLU = 3
 }
 
 pub enum Runtime {
@@ -31,6 +35,14 @@ pub struct Neuro {
     on_epoch_fn: Option<Box<dyn FnMut(u64, u64, f32, f32)>>
 }
 
+#[derive(Serialize, Deserialize)]
+struct LightNeuro {
+    layers: Vec<Layer>,
+    weights: Vec<Mtx>,
+    biases: Vec<Vec<f32>>
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 struct Layer {
     neurons: u64,
     activation: Activation,
@@ -48,6 +60,37 @@ impl Neuro {
             },
             on_epoch_fn: None
         }
+    }
+
+    pub fn save(model: &Neuro, filename: String) {
+        let mut file = std::fs::File::create(filename).unwrap();
+        file.write(serde_json::to_string(&LightNeuro{
+            layers: model.layers.clone(),
+            weights: model.weights.clone(),
+            biases: model.biases.clone()
+        }).unwrap().as_bytes()).unwrap();
+    }
+
+    pub fn load(filename: String) -> Self {
+        let mut file = std::fs::File::open(filename).unwrap();
+        let mut json = String::new();
+        file.read_to_string(&mut json).unwrap();
+        let light: LightNeuro = serde_json::from_str(&json).unwrap();
+        Neuro {
+            layers: light.layers.clone(),
+            weights: light.weights.clone(),
+            biases: light.biases.clone(),
+            gpu: None,
+            on_epoch_fn: None
+        }
+    }
+
+    pub fn with_runtime(mut self, runtime:Runtime) -> Self {
+        self.gpu = match runtime {
+            Runtime::CPU => None,
+            Runtime::GPU => Some(oclot::Oclot::new())
+        };
+        self
     }
 
     pub fn add_layer(mut self, neurons:u64, activation:Activation) -> Self {
