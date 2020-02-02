@@ -109,8 +109,9 @@ impl Neuro {
         }
 
         self.init_parameters(x.shape().1);
+
+        let mut order: Vec<usize> = (0..x.shape().0).collect();
         for epoch in 0..epochs {
-            let mut order: Vec<usize> = (0..x.shape().0).collect();
             order.shuffle(&mut rand::thread_rng());
 
             let epoch_x_raw = x.reorder_rows(&order).get_raw();
@@ -156,28 +157,16 @@ impl Neuro {
                 }
             }
 
-            let get_msr = &mut |x:&Mtx, y:&Mtx| {
-                let prediction = self.predict(&x).unwrap();
-                let (tests, classes) = y.shape();
-                prediction.add(&y.func(|x|-x))
-                    .func(|x|x*x)
-                    .sum(0)
-                    .func(|x|x/classes as f32)
-                    .func(|x|x.sqrt())
-                    .sum(1)
-                    .func(|x|x/tests as f32)
-                    .get_raw()[0]
-            };
-
-            // calculate loss
-            let train_msr = get_msr(&x, &y);
-            let test_msr = get_msr(&test_x, &test_y);
-            if let Some(func) = &mut self.on_epoch_fn {
-                func(epoch, epochs, train_msr, test_msr);
+            if self.on_epoch_fn.is_some() {
+                // calculate loss
+                let train_msr = self.get_msr(&x, &y);
+                let test_msr = self.get_msr(&test_x, &test_y);
+                self.on_epoch_fn.as_mut().unwrap()(epoch, epochs, train_msr, test_msr);
             }
         }
         self
     }
+
 
     pub fn predict(&mut self, x:&Mtx) -> Result<Mtx, NeuroError> {
         if self.weights.is_empty() {
@@ -188,9 +177,24 @@ impl Neuro {
         Ok(activations[activations.len()-1].clone())
     }
 
+
     pub fn on_epoch<F:FnMut(u64, u64, f32, f32) + 'static>(mut self, func: F) -> Self {
         self.on_epoch_fn = Some(Box::new(func));
         self
+    }
+
+
+    fn get_msr(&mut self, x:&Mtx, y:&Mtx) -> f32 {
+        let prediction = &self.predict(&x).unwrap();
+        let (tests, classes) = y.shape();
+        prediction.add(&y.func(|x|-x))
+            .func(|x|x*x)
+            .sum(0)
+            .func(|x|x/classes as f32)
+            .func(|x|x.sqrt())
+            .sum(1)
+            .func(|x|x/tests as f32)
+            .get_raw()[0]
     }
 
 
