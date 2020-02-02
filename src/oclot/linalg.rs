@@ -16,15 +16,14 @@ impl Mtx {
     }
 
     pub fn trans(&self) -> Self {
-        let shape = (self.shape.1, self.shape.0);
-        let mut raw: Vec<f32> = Vec::with_capacity(self.raw.len());
-        for i in 0..self.shape.1 {
-            for j in 0..self.shape.0 {
-                raw.push(self.raw[j*self.shape.1 + i]);
-            }
+        Mtx {
+            shape: (self.shape.1, self.shape.0),
+            raw: (0..self.shape.1)
+                    .flat_map(|i| {
+                        (0..self.shape.0)
+                            .map(move |j| self.raw[j*self.shape.1 + i])
+                    }).collect()
         }
-
-        Mtx {shape, raw}
     }
 
     pub fn show(&self) {
@@ -54,17 +53,17 @@ impl Mtx {
         }
     }
 
-    pub fn add_vector(&self, vector: &Vec<f32>) -> Self {
-        if vector.len() != self.shape.1 {
+    pub fn add_vector(&self, vec: &Vec<f32>) -> Self {
+        if vec.len() != self.shape.1 {
             panic!("invalid shape");
         }
 
-        let mut raw: Vec<f32> = Vec::with_capacity(self.raw.len());
-        for i in 0..self.raw.len() {
-            raw.push(self.raw[i] + vector[i%vector.len()]);
+        Mtx {
+            shape: self.shape,
+            raw: (0..self.raw.len())
+                    .map(|i| self.raw[i] + vec[i%vec.len()])
+                    .collect()
         }
-
-        Mtx {shape: self.shape, raw}
     }
 
     pub fn dot(&self, other: &Self) -> Self {
@@ -72,21 +71,18 @@ impl Mtx {
             panic!("invalid shape");
         }
 
-        let shape = (self.shape.0, other.shape.1);
-        let mut raw: Vec<f32> = Vec::with_capacity(shape.0 * shape.1);
-        for i in 0..shape.0 {
-            for j in 0..shape.1 {
-                let mut sum = 0.;
-                for k in 0..self.shape.1 {
-                    let indexa = i*self.shape.1+k;
-                    let indexb = k*other.shape.1+j;
-                    sum += self.raw[indexa] * other.raw[indexb];
-                }
-                raw.push(sum);
-            }
+        Mtx {
+            shape: (self.shape.0, other.shape.1),
+            raw: (0..self.shape.0).flat_map(|i| {
+                        (0..other.shape.1).map(move |j| {
+                            (0..self.shape.1).map(|k| {
+                                let a = i*self.shape.1+k;
+                                let b = k*other.shape.1+j;
+                                self.raw[a] * other.raw[b]
+                            }).sum()
+                        })
+                    }).collect()
         }
-        // let raw = ocl_dot();
-        Mtx {shape, raw}
     }
 
     pub fn func<F: Fn(&f32)->f32>(&self, f: F) -> Self {
@@ -117,25 +113,19 @@ impl Mtx {
 
         let (rows, cols) = self.shape();
         if dim == 0 {
-            let mut raw: Vec<f32> = Vec::with_capacity(rows);
-            for i in 0..rows {
-                let mut sum = 0.;
-                for j in 0..cols {
-                    sum  += self.raw[i*cols + j];
-                }
-                raw.push(sum);
+            Mtx {
+                shape:(rows, 1),
+                raw: (0..rows).map(|i| {
+                        (0..cols).map(move |j| self.raw[i*cols + j]).sum()
+                    }).collect()
             }
-            Mtx{shape:(rows, 1), raw}
         } else {
-            let mut raw: Vec<f32> = Vec::with_capacity(cols);
-            for j in 0..cols {
-                let mut sum = 0.;
-                for i in 0..rows {
-                    sum  += self.raw[i*cols + j];
-                }
-                raw.push(sum);
+            Mtx {
+                shape:(1, cols),
+                raw: (0..cols).map(|j| {
+                        (0..rows).map(move |i| self.raw[i*cols + j]).sum()
+                    }).collect()
             }
-            Mtx{shape:(1, cols), raw}
         }
     }
 
@@ -153,36 +143,34 @@ impl Mtx {
     }
 
     pub fn reorder_rows(&self, index: &Vec<usize>) -> Self {
-        let (rows, cols) = self.shape();
-        let mut raw: Vec<f32> = Vec::with_capacity(rows * cols);
-        for i in index {
-            for j in 0..cols {
-                raw.push(self.raw[i*cols + j]);
-            }
+        let cols = self.shape().1;
+        Mtx {
+            shape:self.shape,
+            raw: index.iter().flat_map(|i| {
+                        (0..cols).map(move |j| self.raw[i*cols + j])
+                    }).collect()
         }
-
-        Mtx {shape:self.shape, raw}
     }
 
     pub fn softmax(&self) -> Self {
         let (rows, cols) = self.shape();
-        let mut raw: Vec<f32> = Vec::with_capacity(rows * cols);
-        for i in 0..rows {
-            let sum: f32 = (&self.raw[i*cols..(i+1)*cols]).iter()
-                        .map(|x: &f32| E.powf(*x)).sum();
-            for j in 0..cols {
-                raw.push(E.powf(self.raw[i*cols + j])/sum);
-            }
+
+        Mtx {
+            shape: self.shape,
+            raw: (0..rows).flat_map(|i| {
+                    let sum: f32 = (&self.raw[i*cols..(i+1)*cols])
+                                    .iter()
+                                    .map(|x: &f32| E.powf(*x))
+                                    .sum();
+                    (0..cols).map(move |j| E.powf(self.raw[i*cols + j])/sum)
+                }).collect()
         }
-        Mtx {shape:self.shape, raw}
     }
 }
 
 
 #[cfg(test)]
 mod tests {
-    use rand::thread_rng;
-    use rand::seq::SliceRandom;
     use super::*;
 
     #[test]
@@ -324,16 +312,13 @@ mod tests {
 
     #[test]
     fn test_shuffle() {
-
         let a = Mtx::new((4, 2), vec![1., 2., 3., 4., 5., 6., 7., 8.]);
         let b = Mtx::new((4, 1), vec![1., 3., 5., 7.]);
+        let index = vec![1, 3, 2, 0];
 
-        let mut index: Vec<usize> = (0..4).collect();
-        index.shuffle(&mut thread_rng());
-
-        // assert this
-        a.reorder_rows(&index).show();
-        b.reorder_rows(&index).show();
+        assert_eq!(a.reorder_rows(&index).get_raw(),
+            vec![3., 4., 7., 8., 5., 6., 1., 2.]);
+        assert_eq!(b.reorder_rows(&index).get_raw(), vec![3., 7., 5., 1.]);
     }
 
     #[test]
