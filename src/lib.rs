@@ -10,6 +10,8 @@ use std::f32::consts::E;
 use rand::Rng;
 pub use oclot::Mtx;
 
+
+
 #[derive(Serialize, Deserialize, Clone)]
 pub enum Activation {
     Sigmoid = 1,
@@ -17,15 +19,18 @@ pub enum Activation {
     ReLU = 3
 }
 
+
 pub enum Runtime {
     CPU,
     GPU
 }
 
+
 #[derive(Debug)]
 pub enum NeuroError {
     ModelNotTrained
 }
+
 
 pub struct Neuro {
     layers: Vec<Layer>,
@@ -35,6 +40,7 @@ pub struct Neuro {
     on_epoch_fn: Option<Box<dyn FnMut(u64, u64, f32, f32)>>
 }
 
+
 #[derive(Serialize, Deserialize)]
 struct LightNeuro {
     layers: Vec<Layer>,
@@ -42,11 +48,13 @@ struct LightNeuro {
     biases: Vec<Vec<f32>>
 }
 
+
 #[derive(Serialize, Deserialize, Clone)]
 struct Layer {
     neurons: u64,
     activation: Activation,
 }
+
 
 impl Neuro {
     pub fn new(runtime:Runtime) -> Self {
@@ -62,6 +70,7 @@ impl Neuro {
         }
     }
 
+
     pub fn save(model: &Neuro, filename: String) {
         let mut file = std::fs::File::create(filename).unwrap();
         file.write(serde_json::to_string(&LightNeuro{
@@ -70,6 +79,7 @@ impl Neuro {
             biases: model.biases.clone()
         }).unwrap().as_bytes()).unwrap();
     }
+
 
     pub fn load(filename: String) -> Self {
         let mut file = std::fs::File::open(filename).unwrap();
@@ -85,6 +95,7 @@ impl Neuro {
         }
     }
 
+
     pub fn with_runtime(mut self, runtime:Runtime) -> Self {
         self.gpu = match runtime {
             Runtime::CPU => None,
@@ -92,6 +103,7 @@ impl Neuro {
         };
         self
     }
+
 
     pub fn add_layer(mut self, neurons:u64, activation:Activation) -> Self {
         if self.layers.is_empty() {
@@ -102,6 +114,7 @@ impl Neuro {
         self
     }
 
+
     pub fn train(mut self, x:&Mtx, y:&Mtx, test_x:&Mtx, test_y:&Mtx,
         learning_rate:f32, epochs:u64, batch_size:usize) -> Self {
         if self.layers.is_empty() {
@@ -110,51 +123,25 @@ impl Neuro {
 
         self.init_parameters(x.shape().1);
 
+        let batch_size = if batch_size == 0 {1} else {batch_size};
+        let ((_, x_cols), (_, y_cols)) = (x.shape(), y.shape());
         let mut order: Vec<usize> = (0..x.shape().0).collect();
         for epoch in 0..epochs {
             order.shuffle(&mut rand::thread_rng());
 
-            let epoch_x_raw = x.reorder_rows(&order).get_raw();
-            let epoch_y_raw = y.reorder_rows(&order).get_raw();
+            let epoch_x = x.reorder_rows(&order).get_raw();
+            let x_iter = epoch_x.chunks(x_cols*batch_size);
 
-            let (rows, x_cols) = x.shape();
-            let (_, y_cols) = y.shape();
+            let epoch_y = y.reorder_rows(&order).get_raw();
+            let y_iter = epoch_y.chunks(y_cols*batch_size);
 
-            let mut _batch_size = 1;
-            if batch_size > 0 {
-                _batch_size = batch_size;
-            }
-
-            let mut total_batches = rows/_batch_size;
-            if rows % _batch_size != 0 {
-                total_batches += 1;
-            }
-
-            for batch in 0..total_batches {
-                let x_first = batch*_batch_size*x_cols;
-                let mut x_last = x_first + _batch_size*x_cols;
-                if x_last > rows*x_cols {
-                    x_last = rows*x_cols;
-                }
-
-                let y_first = batch*_batch_size*y_cols;
-                let mut y_last = y_first + _batch_size*y_cols;
-                if y_last > rows*y_cols {
-                    y_last = rows*y_cols;
-                }
-
-                let mini_x = Mtx::new(((x_last-x_first)/x_cols, x_cols), epoch_x_raw[x_first..x_last].to_vec());
-                let mini_y = Mtx::new(((y_last-y_first)/y_cols, y_cols), epoch_y_raw[y_first..y_last].to_vec());
+            for (x_batch, y_batch) in x_iter.zip(y_iter) {
+                let rows = x_batch.len()/x_cols;
+                let mini_x = Mtx::new((rows, x_cols), x_batch.to_vec());
+                let mini_y = Mtx::new((rows, y_cols), y_batch.to_vec());
                 let (_, activations) = self.feedforward(&mini_x);
                 let (dw, db) = self.backpropagation(&activations, &mini_y);
-                for i in 0..self.weights.len() {
-                    self.weights[i] = self.weights[i].add(
-                        &dw[i].func(|&x| x*(learning_rate/mini_x.shape().0 as f32)));
-                    self.biases[i] = self.biases[i].iter()
-                                       .zip(&db[i].func(|x| x*(learning_rate/mini_y.shape().0 as f32)).get_raw())
-                                       .map(|(&a, &b)| a+b)
-                                       .collect();
-                }
+                self.update_model(dw, db, learning_rate/rows as f32);
             }
 
             if self.on_epoch_fn.is_some() {
@@ -187,6 +174,7 @@ impl Neuro {
     fn get_msr(&mut self, x:&Mtx, y:&Mtx) -> f32 {
         let prediction = &self.predict(&x).unwrap();
         let (tests, classes) = y.shape();
+        println!("prediction {:?}", prediction.shape());
         prediction.add(&y.func(|x|-x))
             .func(|x|x*x)
             .sum(0)
@@ -219,6 +207,7 @@ impl Neuro {
         self.biases = b;
     }
 
+
     fn feedforward(&mut self, x: &Mtx) -> (Vec<Mtx>, Vec<Mtx>) {
         let mut caches = Vec::with_capacity(self.layers.len());
         let mut activations = Vec::with_capacity(self.layers.len()+1);
@@ -243,6 +232,7 @@ impl Neuro {
         }
         (caches, activations)
     }
+
 
     fn backpropagation(&mut self, activations: &Vec<Mtx>, y:&Mtx) -> (Vec<Mtx>, Vec<Mtx>){
         let mut deriv_b: Vec<Mtx> = Vec::with_capacity(activations.len());
@@ -288,26 +278,44 @@ impl Neuro {
         (deriv_w, deriv_b)
     }
 
+
+    fn update_model(&mut self, dw: Vec<Mtx>, db: Vec<Mtx>, rate:f32) {
+        for i in 0..self.weights.len() {
+            self.weights[i] = self.weights[i].add(&dw[i].func(|&x| x*rate));
+            self.biases[i] = self.biases[i]
+                                .iter()
+                                .zip(&db[i].func(|x| x*rate).get_raw())
+                                .map(|(&a, &b)| a+b)
+                                .collect();
+        }
+    }
+
+
     fn random_vector(size: usize) -> Vec<f32> {
         let mut rng = rand::thread_rng();
         vec![0.; size].iter().map(|_| rng.gen::<f32>()).collect()
     }
 
+
     fn sigmoid(x: &f32) -> f32 {
         1. / (1. + E.powf(-x))
     }
+
 
     fn sigmoid_prime(x: &f32) -> f32 {
         Neuro::sigmoid(x) * (1. - Neuro::sigmoid(x))
     }
 
+
     fn tanh(x: &f32) -> f32 {
         x.tanh()
     }
 
+
     fn tanh_prime(x: &f32) -> f32 {
         1. - x*x
     }
+
 
     fn relu(x: &f32) -> f32 {
         if *x > 0. {
@@ -316,6 +324,7 @@ impl Neuro {
             0.
         }
     }
+
 
     fn relu_prime(x: &f32) -> f32 {
         if *x > 0. {
