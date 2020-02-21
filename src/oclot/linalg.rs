@@ -1,6 +1,22 @@
 use std::f32::consts::E;
 use serde::{Serialize, Deserialize};
 
+#[macro_export]
+macro_rules! mtx {
+    (($rows:expr , $cols:expr); &$x:expr) => {
+        Mtx::new(($rows, $cols), $x.to_vec())
+    };
+    (($rows:expr , $cols:expr); [$( $x:expr ),*]) => {
+        Mtx::new(($rows, $cols), vec![$( $x as f32 ),*])
+    };
+    (($rows:expr , $cols:expr); [$( $x:expr ),+,]) => {
+        Mtx::new(($rows, $cols), vec![$( $x as f32 ),*])
+    };
+    (($rows:expr , $cols:expr); $elem:expr) => {
+        Mtx::new(($rows, $cols), vec![$elem as f32; $rows*$cols])
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, PartialOrd, Clone)]
 pub struct Mtx {
     shape: (usize, usize),
@@ -334,5 +350,19 @@ mod tests {
         assert_eq!(a.get_row(0).get_raw(), vec![1., 2.]);
         assert_eq!(a.get_row(1).get_raw(), vec![3., 4.]);
         assert_eq!(a.get_row(2).get_raw(), vec![5., 6.]);
+    }
+
+    #[test]
+    fn test_mtx() {
+        let expected = Mtx::new((2,3), vec![1., 2., 3., 4., 5., 6.]);
+        assert_eq!(expected, mtx![(2,3); [1,2,3,4,5,6]]);
+        assert_eq!(expected, mtx![(2,3); [1,2,3,4,5,6,]]);
+
+        let expected = Mtx::new((20,5), vec![3.14; 100]);
+        assert_eq!(expected, mtx![(20,5); 3.14]);
+
+        let expected = Mtx::new((2,2), vec![1., 2., 3., 4.]);
+        let vec = vec![1., 2., 3., 4., 5., 6., 7., 8.];
+        assert_eq!(expected, mtx![(2, 2); &vec[0..4]]);
     }
 }

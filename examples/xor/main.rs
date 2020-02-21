@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate neuro;
 
 use gnuplot::*;
@@ -5,36 +6,20 @@ use neuro::{Neuro, Activation, Mtx, Runtime};
 
 fn main() {
 
-    //  XOR:
-    //       X    Y
-    //      0 0 | 0
-    //      0 1 | 1
-    //      1 0 | 1
-    //      1 1 | 0
+    let x = mtx! {
+        (4, 2);
+        [           // Y
+            0, 0,   // 0
+            0, 1,   // 1
+            1, 0,   // 1
+            1, 1    // 0
+        ]
+    };
 
-    let h = 1.;
-    let l = -1.;
+    let y = mtx!{(4, 1); [0, 1, 1, 0]};
 
-    let x = Mtx::new((4, 2), vec![
-        l, l,
-        l, h,
-        h, l,
-        h, h
-    ]);
-
-    let y = Mtx::new((4, 1), vec![
-        l,
-        h,
-        h,
-        l
-    ]);
-
-    let test = Mtx::new((4, 2), vec![
-        l, l,
-        l, h,
-        h, l,
-        h, h
-    ]);
+    // test dataset
+    let test = x.clone();
 
     let mut xor_epochs: Vec<u64> = vec![];
     let mut xor_train_mse: Vec<f32> = vec![];
@@ -45,7 +30,7 @@ fn main() {
         .add_layer(3, Activation::Tanh)
         .add_layer(1, Activation::Tanh)
         .on_epoch(move |epoch, total_epochs, train_mse, test_mse| {
-            if epoch % 100 != 0 {
+            if epoch % 10 != 0 {
                 return;
             }
             xor_epochs.push(epoch);

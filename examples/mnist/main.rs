@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate neuro;
 
 extern crate npy;
@@ -26,10 +27,10 @@ fn main() {
     println!("test_X -> {}", test_x_original.len());
     println!("test_X -> {}", test_y_original.len());
 
-    let train_x = Mtx::new((5000, 784), train_x_original[0..5000*784].to_vec());
-    let train_y = Mtx::new((5000, 10), train_y_original[0..5000*10].to_vec());
-    let test_x = Mtx::new((1000, 784), test_x_original[0..1000*784].to_vec());
-    let test_y = Mtx::new((1000, 10), test_y_original[0..1000*10].to_vec());
+    let train_x = mtx![(5000, 784); &train_x_original[0..5000*784]];
+    let train_y = mtx![(5000, 10); &train_y_original[0..5000*10]];
+    let test_x = mtx![(1000, 784); &test_x_original[0..1000*784]];
+    let test_y = mtx![(1000, 10); &test_y_original[0..1000*10]];
 
     let mut mnist_epochs: Vec<u64> = vec![];
     let mut mnist_train_mse: Vec<f32> = vec![];

@@ -174,7 +174,6 @@ impl Neuro {
     fn get_msr(&mut self, x:&Mtx, y:&Mtx) -> f32 {
         let prediction = &self.predict(&x).unwrap();
         let (tests, classes) = y.shape();
-        println!("prediction {:?}", prediction.shape());
         prediction.add(&y.func(|x|-x))
             .func(|x|x*x)
             .sum(0)
