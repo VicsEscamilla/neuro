@@ -3,6 +3,9 @@ use serde::{Serialize, Deserialize};
 
 #[macro_export]
 macro_rules! mtx {
+    () => {
+        Mtx::new((0,0), vec![])
+    };
     (($rows:expr , $cols:expr); &$x:expr) => {
         Mtx::new(($rows, $cols), $x.to_vec())
     };
@@ -364,5 +367,8 @@ mod tests {
         let expected = Mtx::new((2,2), vec![1., 2., 3., 4.]);
         let vec = vec![1., 2., 3., 4., 5., 6., 7., 8.];
         assert_eq!(expected, mtx![(2, 2); &vec[0..4]]);
+
+        let expected: Vec<f32> = vec![];
+        assert_eq!(expected, mtx![].get_raw());
     }
 }

@@ -2,7 +2,8 @@
 extern crate neuro;
 
 use gnuplot::*;
-use neuro::{Neuro, Activation, Mtx, Runtime};
+use neuro::{Mtx, Neuro};
+use neuro::layers::{Activation, Dense};
 
 fn main() {
 
@@ -26,9 +27,9 @@ fn main() {
     let mut xor_test_mse: Vec<f32> = vec![];
     let mut fg = Figure::new();
 
-    let mut xor = Neuro::new(Runtime::CPU)
-        .add_layer(3, Activation::Tanh)
-        .add_layer(1, Activation::Tanh)
+    let mut xor = Neuro::new()
+        .add_layer(Dense::new(3, Activation::Tanh))
+        .add_layer(Dense::new(1, Activation::Tanh))
         .on_epoch(move |epoch, total_epochs, train_mse, test_mse| {
             if epoch % 10 != 0 {
                 return;

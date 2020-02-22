@@ -4,7 +4,8 @@ extern crate neuro;
 extern crate npy;
 
 use gnuplot::*;
-use neuro::{Neuro, Activation, Mtx, Runtime};
+use neuro::{Neuro, Mtx};
+use neuro::layers::{Activation, gpu::Dense};
 
 use std::io::Read;
 
@@ -37,9 +38,9 @@ fn main() {
     let mut mnist_test_mse: Vec<f32> = vec![];
     let mut fg = Figure::new();
 
-    let mut digit = Neuro::new(Runtime::GPU)
-        .add_layer(30, Activation::Sigmoid)
-        .add_layer(10, Activation::Sigmoid)
+    let mut digit = Neuro::new()
+        .add_layer(Dense::new(30, Activation::Sigmoid))
+        .add_layer(Dense::new(10, Activation::Sigmoid))
         .on_epoch(move |epoch, total_epochs, train_mse, test_mse| {
             println!("epoch {} of {} -> train_mse: {}, test_mse: {}",
                 epoch, total_epochs, train_mse, test_mse);
@@ -56,7 +57,7 @@ fn main() {
                 .lines(mnist_epochs.iter(), mnist_test_mse.iter(), &[Caption("Test MSE")]);
             fg.show().unwrap();
         })
-        .train(&train_x, &train_y, &test_x, &test_y, 3.0, 300000, 100);
+        .train(&train_x, &train_y, &test_x, &test_y, 3.0, 30, 100);
 
     let mut successes = 0.;
     let total_tests = test_x.shape().0;
