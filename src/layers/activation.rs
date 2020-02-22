@@ -1,7 +1,6 @@
 use std::f32::consts::E;
-use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub enum Activation {
     Sigmoid = 1,
     Tanh = 2,

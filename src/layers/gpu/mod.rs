@@ -1,6 +1,5 @@
 mod oclot;
 
-use serde::{Serialize, Deserialize};
 use rand::Rng;
 use super::{Mtx, mtx, Layer, activation::*};
 
@@ -72,9 +71,11 @@ impl Layer for Dense {
         self.biases = Dense::random_vector(cols);
     }
 
+
     fn input_size(&self) -> usize {
         self.neurons
     }
+
 
     fn error(&self, result: &Mtx, y: &Mtx) -> Mtx {
         result.func(|&x|-x).add(&y)

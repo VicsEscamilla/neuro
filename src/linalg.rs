@@ -1,5 +1,4 @@
 use std::f32::consts::E;
-use serde::{Serialize, Deserialize};
 
 #[macro_export]
 macro_rules! mtx {
@@ -20,7 +19,7 @@ macro_rules! mtx {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct Mtx {
     shape: (usize, usize),
     raw: Vec<f32>

@@ -4,13 +4,10 @@ pub mod layers;
 
 extern crate rand;
 
-use std::io::Write;
-use std::io::Read;
-use serde::{Serialize, Deserialize};
 use rand::seq::SliceRandom;
 
-use layers::{Activation, Dense};
 pub use linalg::Mtx;
+
 
 pub trait Layer {
     fn forward(&mut self, x: &Mtx) -> Mtx;
@@ -35,13 +32,6 @@ pub struct Neuro {
 }
 
 
-// #[derive(Serialize, Deserialize)]
-// struct LightNeuro {
-//     layers: Vec<Box<dyn Layer>>,
-// }
-
-
-
 impl Neuro {
     pub fn new() -> Self {
         Neuro {
@@ -50,27 +40,6 @@ impl Neuro {
             is_initialized: false
         }
     }
-
-
-    // pub fn save(model: &Neuro, filename: String) {
-    //     let mut file = std::fs::File::create(filename).unwrap();
-    //     file.write(serde_json::to_string(&LightNeuro{
-    //         layers: model.layers.clone(),
-    //     }).unwrap().as_bytes()).unwrap();
-    // }
-
-
-    // pub fn load(filename: String) -> Self {
-    //     let mut file = std::fs::File::open(filename).unwrap();
-    //     let mut json = String::new();
-    //     file.read_to_string(&mut json).unwrap();
-    //     let light: LightNeuro = serde_json::from_str(&json).unwrap();
-    //     Neuro {
-    //         layers: light.layers.clone(),
-    //         on_epoch_fn: None,
-    //         is_initialized: true
-    //     }
-    // }
 
 
     pub fn add_layer(mut self, layer: Box<dyn Layer>) -> Self {

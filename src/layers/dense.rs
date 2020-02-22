@@ -1,8 +1,7 @@
-use serde::{Serialize, Deserialize};
 use rand::Rng;
 use super::{Mtx, mtx, Layer, activation::*};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Clone)]
 pub struct Dense {
     neurons: usize,
     activation: Activation,
