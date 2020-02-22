@@ -7,27 +7,46 @@ pub enum Activation {
     ReLU = 3
 }
 
-pub fn sigmoid(x: &f32) -> f32 {
+
+pub fn function(a: &Activation) -> impl Fn(&f32)->f32 {
+    match a {
+        Activation::Sigmoid => sigmoid,
+        Activation::Tanh => tanh,
+        Activation::ReLU => relu
+    }
+}
+
+
+pub fn prime(a: &Activation) -> impl Fn(&f32)->f32 {
+    match a {
+        Activation::Sigmoid => sigmoid_prime,
+        Activation::Tanh => tanh_prime,
+        Activation::ReLU => relu_prime
+    }
+}
+
+
+fn sigmoid(x: &f32) -> f32 {
     1. / (1. + E.powf(-x))
 }
 
 
-pub fn sigmoid_prime(x: &f32) -> f32 {
+fn sigmoid_prime(x: &f32) -> f32 {
     sigmoid(x) * (1. - sigmoid(x))
 }
 
 
-pub fn tanh(x: &f32) -> f32 {
+fn tanh(x: &f32) -> f32 {
     x.tanh()
 }
 
 
-pub fn tanh_prime(x: &f32) -> f32 {
+fn tanh_prime(x: &f32) -> f32 {
     1. - x*x
 }
 
 
-pub fn relu(x: &f32) -> f32 {
+fn relu(x: &f32) -> f32 {
     if *x > 0. {
         *x
     } else {
@@ -36,7 +55,7 @@ pub fn relu(x: &f32) -> f32 {
 }
 
 
-pub fn relu_prime(x: &f32) -> f32 {
+fn relu_prime(x: &f32) -> f32 {
     if *x > 0. {
         1.
     } else {

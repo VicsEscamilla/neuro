@@ -1,7 +1,7 @@
 mod oclot;
 
 use rand::Rng;
-use super::{Mtx, mtx, Layer, activation::*};
+use super::{Mtx, mtx, Layer, activation::{Activation, function, prime}};
 
 pub struct Dense {
     neurons: usize,
@@ -36,11 +36,9 @@ impl Dense {
 
 impl Layer for Dense {
     fn forward(&mut self, x: &Mtx) -> Mtx {
-        self.gpu.dot(&x, &self.weights).add_vector(&self.biases).func(match &self.activation {
-            Activation::Sigmoid => sigmoid,
-            Activation::Tanh => tanh,
-            Activation::ReLU => relu
-        })
+        self.gpu.dot(&x, &self.weights)
+                .add_vector(&self.biases)
+                .func(function(&self.activation))
     }
 
 
@@ -48,11 +46,7 @@ impl Layer for Dense {
         self.dw = self.gpu.dot(&x.trans(), &delta);
         self.db = delta.sum(1);
         self.gpu.dot(&delta, &self.weights.trans())
-             .prod(&x.func(match &self.activation {
-                 Activation::Sigmoid => sigmoid_prime,
-                 Activation::Tanh => tanh_prime,
-                 Activation::ReLU => relu_prime
-             }))
+             .prod(&x.func(prime(&self.activation)))
     }
 
 
@@ -79,10 +73,6 @@ impl Layer for Dense {
 
     fn error(&self, result: &Mtx, y: &Mtx) -> Mtx {
         result.func(|&x|-x).add(&y)
-              .prod(&result.func(match &self.activation {
-                  Activation::Sigmoid => sigmoid_prime,
-                  Activation::Tanh => tanh_prime,
-                  Activation::ReLU => relu_prime
-              }))
+              .prod(&result.func(prime(&self.activation)))
     }
 }
