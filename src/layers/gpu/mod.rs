@@ -36,8 +36,7 @@ impl Dense {
 
 impl Layer for Dense {
     fn forward(&mut self, x: &Mtx) -> Mtx {
-        self.gpu.dot(&x, &self.weights)
-                .add_vector(&self.biases)
+        self.gpu.forward(&x, &self.weights, &self.biases)
                 .func(function(&self.activation))
     }
 
