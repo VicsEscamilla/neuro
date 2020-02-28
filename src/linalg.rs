@@ -33,6 +33,7 @@ impl Mtx {
         Mtx{shape, raw}
     }
 
+
     pub fn trans(&self) -> Self {
         Mtx {
             shape: (self.shape.1, self.shape.0),
@@ -44,6 +45,7 @@ impl Mtx {
         }
     }
 
+
     pub fn show(&self) {
         for i in 0..self.shape.0 {
             for j in 0..self.shape.1 {
@@ -53,9 +55,11 @@ impl Mtx {
         }
     }
 
+
     pub fn shape(&self) -> (usize, usize) {
         return self.shape;
     }
+
 
     pub fn add(&self, other: &Self) -> Self {
         if self.shape != other.shape {
@@ -71,6 +75,7 @@ impl Mtx {
         }
     }
 
+
     pub fn add_vector(&self, vec: &Vec<f32>) -> Self {
         if vec.len() != self.shape.1 {
             panic!("invalid shape");
@@ -83,6 +88,7 @@ impl Mtx {
                     .collect()
         }
     }
+
 
     pub fn dot(&self, other: &Self) -> Self {
         if self.shape.1 != other.shape.0 {
@@ -103,12 +109,14 @@ impl Mtx {
         }
     }
 
+
     pub fn func<F: Fn(&f32)->f32>(&self, f: F) -> Self {
         Mtx {
             shape: self.shape,
             raw: self.raw.iter().map(|x| f(x)).collect()
         }
     }
+
 
     pub fn prod(&self, other: &Self) -> Self {
         if self.shape != other.shape {
@@ -123,6 +131,7 @@ impl Mtx {
                 .collect()
         }
     }
+
 
     pub fn sum(&self, dim: usize) -> Self {
         if dim >= 2 {
@@ -147,9 +156,11 @@ impl Mtx {
         }
     }
 
+
     pub fn get_raw(&self) -> Vec<f32> {
         return self.raw.clone();
     }
+
 
     pub fn get_row(&self, index: usize) -> Self {
         let (rows, cols) = self.shape();
@@ -160,6 +171,7 @@ impl Mtx {
         return Mtx::new((1, cols), self.raw[i..i+cols].to_vec());
     }
 
+
     pub fn reorder_rows(&self, index: &Vec<usize>) -> Self {
         let cols = self.shape().1;
         Mtx {
@@ -169,6 +181,7 @@ impl Mtx {
                     }).collect()
         }
     }
+
 
     pub fn softmax(&self) -> Self {
         let (rows, cols) = self.shape();
@@ -181,6 +194,25 @@ impl Mtx {
                                     .map(|x: &f32| E.powf(*x))
                                     .sum();
                     (0..cols).map(move |j| E.powf(self.raw[i*cols + j])/sum)
+                }).collect()
+        }
+    }
+
+
+    pub fn padding(&self, p_size: usize) -> Self {
+        let (old_rows, old_cols) = self.shape();
+        let (rows, cols) = (old_rows+2*p_size, old_cols+2*p_size);
+        Mtx {
+            shape: (rows, cols),
+            raw: (0..rows).flat_map(|i| {
+                    (0..cols).map(move |j| {
+                        if i < p_size || i >= rows - p_size ||
+                           j < p_size || j >= cols - p_size {
+                            0.
+                        } else {
+                            self.raw[(i-p_size)*old_cols + (j-p_size)]
+                        }
+                    })
                 }).collect()
         }
     }
@@ -197,11 +229,13 @@ mod tests {
         Mtx::new((2, 1), vec![1., 2., 3., 4.]);
     }
 
+
     #[test]
     #[should_panic]
     fn test_wrong_shape_02() {
         Mtx::new((2, 1), vec![1.]);
     }
+
 
     #[test]
     #[should_panic]
@@ -211,6 +245,7 @@ mod tests {
         a.add(&b);
     }
 
+
     #[test]
     fn test_addition() {
         let a = Mtx::new((1, 3), vec![1., 2., 3.]);
@@ -219,12 +254,14 @@ mod tests {
         assert_eq!(a.add(&b), expected);
     }
 
+
     #[test]
     #[should_panic]
     fn test_addition_vector_wrong_shape() {
         let a = Mtx::new((2, 3), vec![1., 2., 3., 4., 5., 6.]);
         a.add_vector(&vec![1., 2., 3., 4.]);
     }
+
 
     #[test]
     fn test_addition_vector() {
@@ -233,10 +270,12 @@ mod tests {
         assert_eq!(a.add_vector(&vec![1., 2., 3.]), expected);
     }
 
+
     #[test]
     fn test_show() {
         Mtx::new((2, 3), vec![1., 2., 3., 4., 5., 6.]).show();
     }
+
 
     #[test]
     #[should_panic]
@@ -246,6 +285,7 @@ mod tests {
         a.dot(&b);
     }
 
+
     #[test]
     fn test_product_dot() {
         let a = Mtx::new((2, 3), vec![1., 2., 3., 4., 5., 6.]);
@@ -254,12 +294,14 @@ mod tests {
         assert_eq!(a.dot(&b), expected);
     }
 
+
     #[test]
     fn test_product_scalar() {
         let a = Mtx::new((2, 3), vec![1., 2., 3., 4., 5., 6.]);
         let expected = Mtx::new((2, 3), vec![10., 20., 30., 40., 50., 60.]);
         assert_eq!(a.func(|x| x*10.), expected);
     }
+
 
     #[test]
     #[should_panic]
@@ -269,6 +311,7 @@ mod tests {
         a.prod(&b);
     }
 
+
     #[test]
     fn test_product() {
         let a = Mtx::new((2, 3), vec![1., 2., 3., 4., 5., 6.]);
@@ -276,6 +319,7 @@ mod tests {
         let expected = Mtx::new((2, 3), vec![1., 4., 9., 16., 25., 36.]);
         assert_eq!(a.prod(&b), expected);
     }
+
 
     #[test]
     fn test_transpose() {
@@ -286,11 +330,13 @@ mod tests {
         assert_eq!(a.trans(), expected);
     }
 
+
     #[test]
     fn test_shape() {
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
         assert_eq!(a.shape(), (3,2));
     }
+
 
     #[test]
     fn test_func() {
@@ -299,12 +345,14 @@ mod tests {
         assert_eq!(a.func(|x| x*x), expected);
     }
 
+
     #[test]
     #[should_panic]
     fn test_sum_wrong_shape() {
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
         a.sum(2);
     }
+
 
     #[test]
     fn test_sum() {
@@ -317,6 +365,7 @@ mod tests {
         assert_eq!(a.sum(1), expected);
     }
 
+
     #[test]
     fn test_get_raw() {
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
@@ -327,6 +376,7 @@ mod tests {
         let expected = Mtx::new((1, 2), vec![9., 12.]);
         assert_eq!(a.sum(1), expected);
     }
+
 
     #[test]
     fn test_shuffle() {
@@ -339,12 +389,14 @@ mod tests {
         assert_eq!(b.reorder_rows(&index).get_raw(), vec![3., 7., 5., 1.]);
     }
 
+
     #[test]
     fn test_softmax() {
         // assert this...
         let a = Mtx::new((1, 8), vec![1., 2., 3., 4., 5., 6., 7., 8.]);
         a.softmax().show();
     }
+
 
     #[test]
     fn test_get_row() {
@@ -353,6 +405,7 @@ mod tests {
         assert_eq!(a.get_row(1).get_raw(), vec![3., 4.]);
         assert_eq!(a.get_row(2).get_raw(), vec![5., 6.]);
     }
+
 
     #[test]
     fn test_mtx() {
@@ -369,5 +422,47 @@ mod tests {
 
         let expected: Vec<f32> = vec![];
         assert_eq!(expected, mtx![].get_raw());
+    }
+
+
+    #[test]
+    fn test_padding() {
+        let a = mtx! {
+            (3, 3);
+            [
+                1, 2, 3,
+                4, 5, 6,
+                7, 8, 9,
+            ]
+        };
+
+        let expected = mtx! {
+            (5, 5);
+            [
+                0, 0, 0, 0, 0,
+                0, 1, 2, 3, 0,
+                0, 4, 5, 6, 0,
+                0, 7, 8, 9, 0,
+                0, 0, 0, 0, 0,
+            ]
+        };
+        assert_eq!(expected.get_raw(), a.padding(1).get_raw());
+
+        let expected = mtx! {
+            (7, 7);
+            [
+                0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0,
+                0, 0, 1, 2, 3, 0, 0,
+                0, 0, 4, 5, 6, 0, 0,
+                0, 0, 7, 8, 9, 0, 0,
+                0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0,
+            ]
+        };
+        assert_eq!(expected.get_raw(), a.padding(2).get_raw());
+
+        assert_eq!(vec![0.;  4], mtx![].padding(1).get_raw());
+        assert_eq!(vec![0.; 16], mtx![].padding(2).get_raw());
     }
 }
