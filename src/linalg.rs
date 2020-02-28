@@ -216,6 +216,45 @@ impl Mtx {
                 }).collect()
         }
     }
+
+
+    pub fn into_windows(&self, filter_size: usize, stride: usize) -> Self {
+        if filter_size == 0 {
+            panic!("invalid filter size");
+        }
+
+        if stride == 0 {
+            panic!("invalid stride");
+        }
+
+        let (rows, cols) = self.shape;
+        if filter_size > rows || filter_size > cols {
+            return Mtx {
+                shape: (0, 0),
+                raw: vec![]
+            };
+        }
+
+        let r_vec: Vec<usize> = (0..rows).collect();
+        let raw = r_vec.windows(filter_size).flat_map(move |i| {
+            let r_cols: Vec<usize> = (0..cols).collect();
+            r_cols.windows(filter_size).flat_map(move |j| {
+                (0..filter_size).flat_map(move |filter_i| {
+                    (0..filter_size).map(move |filter_j| {
+                        self.raw[i[filter_i]*cols + j[filter_j]]
+                    })
+                })
+            }).collect::<Vec<f32>>()
+        }).collect::<Vec<f32>>();
+
+        let rows = (rows-filter_size+1)*(cols-filter_size+1);
+        let cols = filter_size*filter_size;
+
+        Mtx {
+            shape: (rows, cols),
+            raw
+        }
+    }
 }
 
 
@@ -462,7 +501,82 @@ mod tests {
         };
         assert_eq!(expected.get_raw(), a.padding(2).get_raw());
 
+        // empty matrix
         assert_eq!(vec![0.;  4], mtx![].padding(1).get_raw());
         assert_eq!(vec![0.; 16], mtx![].padding(2).get_raw());
+    }
+
+
+    #[test]
+    fn test_into_windows_nostride() {
+        let a = mtx! {
+            (5, 5);
+            [
+                1, 2, 3, 4, 5,
+                6, 7, 8, 9,10,
+               11,12,13,14,15,
+               16,17,18,19,20,
+               21,22,23,24,25,
+            ]
+        };
+
+        let expected = mtx! {
+            (9, 9);
+            [
+                1, 2, 3, 6, 7, 8,11,12,13,
+                2, 3, 4, 7, 8, 9,12,13,14,
+                3, 4, 5, 8, 9,10,13,14,15,
+                6, 7, 8,11,12,13,16,17,18,
+                7, 8, 9,12,13,14,17,18,19,
+                8, 9,10,13,14,15,18,19,20,
+               11,12,13,16,17,18,21,22,23,
+               12,13,14,17,18,19,22,23,24,
+               13,14,15,18,19,20,23,24,25,
+            ]
+        };
+
+        // matrix_size > filter_size
+        assert_eq!(expected, a.into_windows(3, 1));
+
+        // matrix_size == filter_size
+        let a = mtx![(2,2); &vec![0.; 4]];
+        let expected = mtx![(1,4); &vec![0.;4]];
+        assert_eq!(expected, a.into_windows(2,1));
+
+        // matrix_size < filter_size
+        let a = mtx![(2,2); &vec![0.; 4]];
+        let expected = mtx![];
+        assert_eq!(expected, a.into_windows(3,1));
+
+        // empty matrix
+        let a = mtx![];
+        let expected = mtx![];
+        assert_eq!(expected, a.into_windows(3,1));
+    }
+
+
+    #[test]
+    fn test_convolve() {
+        let x = mtx!{
+            (3, 3);
+            [
+                1, 3, 1,
+                0,-1, 1,
+                2, 2,-1
+            ]
+        };
+
+        let k = mtx!{
+            (4, 1);
+            [
+               -1,
+                0,
+                2,
+                1,
+            ]
+        };
+
+        let expected = mtx!{(4, 1); [-2, -4, 6, 4]};
+        assert_eq!(expected, x.into_windows(2, 1).dot(&k));
     }
 }
