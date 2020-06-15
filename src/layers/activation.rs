@@ -32,7 +32,7 @@ fn sigmoid(x: &f32) -> f32 {
 
 
 fn sigmoid_prime(x: &f32) -> f32 {
-    sigmoid(x) * (1. - sigmoid(x))
+    *x * (1. - *x)
 }
 
 
