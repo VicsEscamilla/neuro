@@ -112,6 +112,13 @@ impl Neuro {
     fn get_msr(&mut self, x:&Mtx, y:&Mtx) -> f32 {
         let prediction = &self.predict(&x).unwrap();
         let (tests, classes) = y.shape();
+        // y.add(&prediction.func(|x|-x))
+        //     .func(|x| x*x)
+        //     .sum(0)
+        //     .func(|x| x/2.0*classes as f32)
+        //     .sum(1)
+        //     .func(|x|x/tests as f32)
+        //     .get_raw()[0]
         prediction.add(&y.func(|x|-x))
             .func(|x|x*x)
             .sum(0)
