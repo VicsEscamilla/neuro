@@ -83,9 +83,9 @@ impl Neuro {
 
             if self.on_epoch_fn.is_some() {
                 // calculate loss
-                let train_msr = self.get_msr(&x, &y);
-                let test_msr = self.get_msr(&test_x, &test_y);
-                self.on_epoch_fn.as_mut().unwrap()(epoch, epochs, train_msr, test_msr);
+                let train_loss = self.get_loss(&x, &y);
+                let test_loss = self.get_loss(&test_x, &test_y);
+                self.on_epoch_fn.as_mut().unwrap()(epoch, epochs, train_loss, test_loss);
             }
         }
 
@@ -109,17 +109,31 @@ impl Neuro {
     }
 
 
-    fn get_msr(&mut self, x:&Mtx, y:&Mtx) -> f32 {
+    fn get_loss(&mut self, x:&Mtx, y:&Mtx) -> f32 {
         let prediction = &self.predict(&x).unwrap();
         let (tests, classes) = y.shape();
-        prediction.add(&y.func(|x|-x))
-            .func(|x|x*x)
+
+        // Cross-entropy
+        let first = y.prod(&prediction.func(|x| x.ln()));
+        let second = y.func(|x|1.-x)
+                      .prod(&prediction.func(|x| (1.-x).ln()));
+        first.add(&second)
             .sum(0)
             .func(|x|x/classes as f32)
-            .func(|x|x.sqrt())
             .sum(1)
             .func(|x|x/tests as f32)
+            .func(|x|-x)
             .get_raw()[0]
+
+        // msr
+        // prediction.add(&y.func(|x|-x))
+        //     .func(|x|x*x)
+        //     .sum(0)
+        //     .func(|x|x/classes as f32)
+        //     .func(|x|x.sqrt())
+        //     .sum(1)
+        //     .func(|x|x/tests as f32)
+        //     .get_raw()[0]
     }
 
 

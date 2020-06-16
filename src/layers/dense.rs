@@ -67,7 +67,11 @@ impl Layer for Dense {
     }
 
     fn error(&self, result: &Mtx, y: &Mtx) -> Mtx {
+        // Cross-entropy?
         result.func(|&x|-x).add(&y)
-              .prod(&result.func(prime(&self.activation)))
+
+        // Squared error?
+        // result.func(|&x|-x).add(&y)
+        //       .prod(&result.func(prime(&self.activation)))
     }
 }

@@ -28,8 +28,8 @@ fn main() {
     let mut fg = Figure::new();
 
     let mut xor = Neuro::new()
-        .add_layer(Dense::new(3, Activation::Tanh))
-        .add_layer(Dense::new(1, Activation::Tanh))
+        .add_layer(Dense::new(2, Activation::SigmoidSimple))
+        .add_layer(Dense::new(1, Activation::SigmoidSimple))
         .on_epoch(move |epoch, _total_epochs, train_mse, test_mse| {
             if epoch % 10 != 0 {
                 return;
@@ -47,7 +47,7 @@ fn main() {
                 .lines(xor_epochs.iter(), xor_test_mse.iter(), &[Caption("Test MSE")]);
             fg.show().unwrap();
         })
-        .train(&x, &y, &test, &y, 0.1, 10000, 100);
+        .train(&x, &y, &test, &y, 1., 2000, 1);
 
     println!("{:?}", xor.predict(&test).unwrap().get_raw());
 }

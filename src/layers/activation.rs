@@ -3,14 +3,16 @@ use std::f32::consts::E;
 #[derive(Clone)]
 pub enum Activation {
     Sigmoid = 1,
-    Tanh = 2,
-    ReLU = 3
+    SigmoidSimple = 2,
+    Tanh = 3,
+    ReLU = 4
 }
 
 
 pub fn function(a: &Activation) -> impl Fn(&f32)->f32 {
     match a {
         Activation::Sigmoid => sigmoid,
+        Activation::SigmoidSimple => sigmoid,
         Activation::Tanh => tanh,
         Activation::ReLU => relu
     }
@@ -20,6 +22,7 @@ pub fn function(a: &Activation) -> impl Fn(&f32)->f32 {
 pub fn prime(a: &Activation) -> impl Fn(&f32)->f32 {
     match a {
         Activation::Sigmoid => sigmoid_prime,
+        Activation::SigmoidSimple => sigmoid_prime_simple,
         Activation::Tanh => tanh_prime,
         Activation::ReLU => relu_prime
     }
@@ -31,8 +34,13 @@ fn sigmoid(x: &f32) -> f32 {
 }
 
 
+fn sigmoid_prime_simple(x: &f32) -> f32 {
+    x * (1. - x)
+}
+
+
 fn sigmoid_prime(x: &f32) -> f32 {
-    *x * (1. - *x)
+    sigmoid(x) * (1. - sigmoid(x))
 }
 
 
@@ -47,11 +55,7 @@ fn tanh_prime(x: &f32) -> f32 {
 
 
 fn relu(x: &f32) -> f32 {
-    if *x > 0. {
-        *x
-    } else {
-        0.
-    }
+    x.max(0.)
 }
 
 
