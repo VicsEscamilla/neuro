@@ -28,10 +28,10 @@ fn main() {
     println!("test_X -> {}", test_x_original.len());
     println!("test_X -> {}", test_y_original.len());
 
-    let train_x = mtx![(5000, 784); &train_x_original[0..5000*784]];
-    let train_y = mtx![(5000, 10); &train_y_original[0..5000*10]];
-    let test_x = mtx![(1000, 784); &test_x_original[0..1000*784]];
-    let test_y = mtx![(1000, 10); &test_y_original[0..1000*10]];
+    let train_x = mtx![(50000, 784); &train_x_original[0..50000*784]];
+    let train_y = mtx![(50000, 10); &train_y_original[0..50000*10]];
+    let test_x = mtx![(10000, 784); &test_x_original[0..10000*784]];
+    let test_y = mtx![(10000, 10); &test_y_original[0..10000*10]];
 
     let mut mnist_epochs: Vec<u64> = vec![];
     let mut mnist_train_mse: Vec<f32> = vec![];
@@ -57,7 +57,7 @@ fn main() {
                 .lines(mnist_epochs.iter(), mnist_test_mse.iter(), &[Caption("Test MSE")]);
             fg.show().unwrap();
         })
-        .train(&train_x, &train_y, &test_x, &test_y, 3.0, 30, 100);
+        .train(&train_x, &train_y, &test_x, &test_y, 0.1, 30, 100);
 
     let mut successes = 0.;
     let total_tests = test_x.shape().0;
