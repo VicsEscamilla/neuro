@@ -41,7 +41,7 @@ impl Layer for Dense {
 
     fn backward(&mut self, x: &Mtx, delta:&Mtx) -> Mtx {
         self.dw = x.trans().dot(&delta);
-        self.db = delta.sum(1);
+        self.db = delta.sum_rows();
         delta.dot(&self.weights.trans())
              .prod(&x.func(prime(&self.activation)))
     }
@@ -66,12 +66,4 @@ impl Layer for Dense {
         self.neurons
     }
 
-    fn error(&self, result: &Mtx, y: &Mtx) -> Mtx {
-        // Cross-entropy?
-        result.func(|&x|-x).add(&y)
-
-        // Squared error?
-        // result.func(|&x|-x).add(&y)
-        //       .prod(&result.func(prime(&self.activation)))
-    }
 }

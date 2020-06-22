@@ -15,7 +15,6 @@ pub trait Layer {
     fn update(&mut self, rate: f32);
     fn initialize(&mut self, input_size: usize);
     fn input_size(&self) -> usize;
-    fn error(&self, result: &Mtx, y: &Mtx) -> Mtx;
 }
 
 
@@ -118,9 +117,9 @@ impl Neuro {
         let second = y.func(|x|1.-x)
                       .prod(&prediction.func(|x| (1.-x).ln()));
         first.add(&second)
-            .sum(0)
+            .sum_cols()
             .func(|x|x/classes as f32)
-            .sum(1)
+            .sum_rows()
             .func(|x|x/tests as f32)
             .func(|x|-x)
             .get_raw()[0]
@@ -128,10 +127,10 @@ impl Neuro {
         // msr
         // prediction.add(&y.func(|x|-x))
         //     .func(|x|x*x)
-        //     .sum(0)
+        //     .sum_cols()
         //     .func(|x|x/classes as f32)
         //     .func(|x|x.sqrt())
-        //     .sum(1)
+        //     .sum_rows()
         //     .func(|x|x/tests as f32)
         //     .get_raw()[0]
     }
@@ -162,9 +161,8 @@ impl Neuro {
 
 
     fn backpropagation(&mut self, activations: &Vec<Mtx>, y:&Mtx) {
-        let last_layer = self.layers.last().unwrap();
         let result = activations.last().unwrap();
-        let mut delta = last_layer.error(&result, y);
+        let mut delta = self.error(&result, y);
         for i in (0..self.layers.len()).rev() {
             delta = self.layers[i].backward(&activations[i], &delta);
         }
@@ -175,6 +173,16 @@ impl Neuro {
         for layer in &mut self.layers {
             layer.update(rate);
         }
+    }
+
+
+    fn error(&self, result: &Mtx, y: &Mtx) -> Mtx {
+        // Cross-entropy?
+        result.func(|&x|-x).add(&y)
+
+        // Squared error?
+        // result.func(|&x|-x).add(&y)
+        //       .prod(&result.func(prime(&self.activation)))
     }
 
 }

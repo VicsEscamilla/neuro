@@ -42,9 +42,13 @@ impl Layer for Dense {
 
 
     fn backward(&mut self, x: &Mtx, delta:&Mtx) -> Mtx {
-        self.dw = self.gpu.dot(&x.trans(), &delta);
-        self.db = delta.sum(1);
-        self.gpu.dot(&delta, &self.weights.trans())
+        let xtrans = self.gpu.trans(&x);
+        self.dw = self.gpu.dot(&xtrans, &delta);
+
+        self.db = self.gpu.sum_rows(&delta);
+
+        let wtrans = self.gpu.trans(&self.weights);
+        self.gpu.dot(&delta, &wtrans)
              .prod(&x.func(prime(&self.activation)))
     }
 
@@ -69,13 +73,4 @@ impl Layer for Dense {
         self.neurons
     }
 
-
-    fn error(&self, result: &Mtx, y: &Mtx) -> Mtx {
-        // Cross-entropy?
-        result.func(|&x|-x).add(&y)
-
-        // Squared error?
-        // result.func(|&x|-x).add(&y)
-        //       .prod(&result.func(prime(&self.activation)))
-    }
 }

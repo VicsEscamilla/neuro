@@ -6,6 +6,7 @@ extern crate npy;
 use gnuplot::*;
 use neuro::{Neuro, Mtx};
 use neuro::layers::{Activation, gpu::Dense};
+use std::time::Instant;
 
 use std::io::Read;
 
@@ -38,12 +39,13 @@ fn main() {
     let mut mnist_test_mse: Vec<f32> = vec![];
     let mut fg = Figure::new();
 
+    let mut now = Instant::now();
     let mut digit = Neuro::new()
         .add_layer(Dense::new(30, Activation::Sigmoid))
         .add_layer(Dense::new(10, Activation::Sigmoid))
         .on_epoch(move |epoch, total_epochs, train_mse, test_mse| {
-            println!("epoch {} of {} -> train_mse: {}, test_mse: {}",
-                epoch, total_epochs, train_mse, test_mse);
+            println!("[{}], epoch {} of {} -> train_mse: {}, test_mse: {}",
+                now.elapsed().as_millis(), epoch, total_epochs, train_mse, test_mse);
             mnist_epochs.push(epoch);
             mnist_train_mse.push(train_mse);
             mnist_test_mse.push(test_mse);
@@ -56,6 +58,7 @@ fn main() {
                 .lines(mnist_epochs.iter(), mnist_train_mse.iter(), &[Caption("Train MSE")])
                 .lines(mnist_epochs.iter(), mnist_test_mse.iter(), &[Caption("Test MSE")]);
             fg.show().unwrap();
+            now = Instant::now();
         })
         .train(&train_x, &train_y, &test_x, &test_y, 0.1, 30, 100);
 

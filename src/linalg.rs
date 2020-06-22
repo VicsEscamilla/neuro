@@ -133,7 +133,17 @@ impl Mtx {
     }
 
 
-    pub fn sum(&self, dim: usize) -> Self {
+    pub fn sum_cols(&self) -> Self {
+        self.sum(0)
+    }
+
+
+    pub fn sum_rows(&self) -> Self {
+        self.sum(1)
+    }
+
+
+    fn sum(&self, dim: usize) -> Self {
         if dim >= 2 {
             panic!("invalid dimension");
         }
@@ -397,11 +407,11 @@ mod tests {
     fn test_sum() {
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
         let expected = Mtx::new((3, 1), vec![3., 7., 11.]);
-        assert_eq!(a.sum(0), expected);
+        assert_eq!(a.sum_cols(), expected);
 
         let a = Mtx::new((3, 2), vec![1., 2., 3., 4., 5., 6.]);
         let expected = Mtx::new((1, 2), vec![9., 12.]);
-        assert_eq!(a.sum(1), expected);
+        assert_eq!(a.sum_rows(), expected);
     }
 
 

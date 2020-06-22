@@ -4,10 +4,14 @@ use super::Mtx;
 
 #[derive(Debug)]
 pub struct Oclot {
+    sum_pq: ocl::ProQue,
+    sum_kern: ocl::Kernel,
     dot_pq: ocl::ProQue,
     dot_kern: ocl::Kernel,
     forward_pq: ocl::ProQue,
-    forward_kern: ocl::Kernel
+    forward_kern: ocl::Kernel,
+    trans_pq: ocl::ProQue,
+    trans_kern: ocl::Kernel,
 }
 
 
@@ -15,12 +19,44 @@ impl Oclot {
     pub fn new() -> Oclot {
         let (dot_pq, dot_kern) = Oclot::init_dot();
         let (forward_pq, forward_kern) = Oclot::init_forward();
+        let (sum_pq, sum_kern) = Oclot::init_sum();
+        let (trans_pq, trans_kern) = Oclot::init_transpose();
         Oclot {
+            sum_pq,
+            sum_kern,
             dot_pq,
             dot_kern,
             forward_pq,
             forward_kern,
+            trans_pq,
+            trans_kern,
         }
+    }
+
+
+    pub fn sum_rows(&mut self, x:&Mtx) -> Mtx {
+        let xx = self.trans(&x);
+        let (rows, cols) = xx.shape();
+        Mtx::new(
+            (1, rows),
+            self._sum(1, rows, cols, &xx.get_raw())[0..rows].to_vec())
+    }
+
+
+    pub fn sum_cols(&mut self, x:&Mtx) -> Mtx {
+        let (rows, cols) = x.shape();
+        Mtx::new(
+            (rows, 1),
+            self._sum(0, rows, cols, &x.get_raw())[0..rows].to_vec())
+
+    }
+
+
+    pub fn trans(&mut self, x:&Mtx) -> Mtx {
+        let (rows, cols) = x.shape();
+        Mtx::new(
+            (cols, rows),
+            self._transpose(rows, cols, &x.get_raw()))
     }
 
 
@@ -71,6 +107,146 @@ impl Oclot {
         self.dot_kern.set_arg("C", Some::<&ocl::Buffer<f32>>(&device_c)).unwrap();
 
         unsafe {self.dot_kern.enq().unwrap();}
+
+        device_c.read(&mut response).enq().unwrap();
+        return response;
+    }
+
+
+    fn init_transpose() -> (ocl::ProQue, ocl::Kernel) {
+        static KERNEL_MTXDOT: &'static str = r#"
+        __kernel void transpose(const int rows, const int cols,
+                          const __global float* X,
+                          __global float* C) {
+
+            // Thread identifiers
+            const int globalRow = get_global_id(0); // Row ID of C
+            const int globalCol = get_global_id(1); // Col ID of C
+
+            if (globalRow < rows && globalCol < cols) {
+                C[globalCol*rows + globalRow] = X[globalRow*cols + globalCol];
+            }
+        }
+        "#;
+
+        let pq = ocl::ProQue::builder()
+                    .src(KERNEL_MTXDOT)
+                    .build().unwrap();
+
+        let kern = pq.kernel_builder("transpose")
+            .arg_named("rows", 1 as u32)
+            .arg_named("cols", 1 as u32)
+            .arg_named("X", None::<&ocl::Buffer<f32>>)
+            .arg_named("C", None::<&ocl::Buffer<f32>>)
+            .build().unwrap();
+
+        (pq, kern)
+    }
+
+
+    fn init_sum() -> (ocl::ProQue, ocl::Kernel){
+        static KERNEL_MTXDOT: &'static str = r#"
+        void transpose(const int rows, const int cols,
+                          const __global float* X,
+                          __global float* C) {
+
+            // Thread identifiers
+            const int globalRow = get_global_id(0); // Row ID of C
+            const int globalCol = get_global_id(1); // Col ID of C
+
+            if (globalRow < rows && globalCol < cols) {
+                C[globalCol*rows + globalRow] = X[globalRow*cols + globalCol];
+            }
+        }
+
+        __kernel void sum(const int dim, const int rows, const int cols,
+                          const __global float* X,
+                          __global float* C) {
+
+            // Thread identifiers
+            const int globalRow = get_global_id(0); // Row ID of C
+            const int globalCol = get_global_id(1); // Col ID of C
+
+            C[globalRow*cols + globalCol] = X[globalRow*cols + globalCol];
+            barrier(CLK_LOCAL_MEM_FENCE);
+
+            for (int i = cols%2 ? cols/2 + 1 : cols/2; i > 0; i=i/2) {
+                if (globalCol < i && globalCol + i < cols) {
+                    float a = C[globalRow*cols + globalCol];
+                    float b = C[globalRow*cols + globalCol + i];
+                    C[globalRow*cols + globalCol] = a + b;
+                }
+
+                barrier(CLK_LOCAL_MEM_FENCE);
+            }
+
+            transpose(rows, cols, C, C);
+        }
+        "#;
+
+        let pq = ocl::ProQue::builder()
+                    .src(KERNEL_MTXDOT)
+                    .build().unwrap();
+
+        let kern = pq.kernel_builder("sum")
+            .arg_named("dim", 1 as u32)
+            .arg_named("rows", 1 as u32)
+            .arg_named("cols", 1 as u32)
+            .arg_named("X", None::<&ocl::Buffer<f32>>)
+            .arg_named("C", None::<&ocl::Buffer<f32>>)
+            .build().unwrap();
+
+        (pq, kern)
+    }
+
+
+    fn _transpose(&mut self, rows:usize, cols:usize, x:&Vec<f32>) -> Vec<f32> {
+        self.trans_pq.set_dims([rows, cols]);
+        let mut response: Vec<f32> = vec![0.0f32; rows*cols];
+
+        let device_x = ocl::Buffer::builder()
+            .queue(self.dot_pq.queue().clone())
+            .flags(ocl::MemFlags::new().read_only())
+            .len(rows*cols)
+            .copy_host_slice(&x)
+            .build().unwrap();
+
+        let device_c: ocl::Buffer<f32> = self.trans_pq.create_buffer().unwrap();
+
+        self.trans_kern.set_default_global_work_size(*self.trans_pq.dims());
+        self.trans_kern.set_arg("rows", rows as u32).unwrap();
+        self.trans_kern.set_arg("cols", cols as u32).unwrap();
+        self.trans_kern.set_arg("X", Some::<&ocl::Buffer<f32>>(&device_x)).unwrap();
+        self.trans_kern.set_arg("C", Some::<&ocl::Buffer<f32>>(&device_c)).unwrap();
+
+        unsafe {self.trans_kern.enq().unwrap();}
+
+        device_c.read(&mut response).enq().unwrap();
+        return response;
+    }
+
+
+    fn _sum(&mut self, dim:usize, rows:usize, cols:usize, x:&Vec<f32>) -> Vec<f32> {
+        self.sum_pq.set_dims([rows, cols]);
+        let mut response: Vec<f32> = vec![0.0f32; rows*cols];
+
+        let device_x = ocl::Buffer::builder()
+            .queue(self.dot_pq.queue().clone())
+            .flags(ocl::MemFlags::new().read_only())
+            .len(rows*cols)
+            .copy_host_slice(&x)
+            .build().unwrap();
+
+        let device_c: ocl::Buffer<f32> = self.sum_pq.create_buffer().unwrap();
+
+        self.sum_kern.set_default_global_work_size(*self.sum_pq.dims());
+        self.sum_kern.set_arg("dim", dim as u32).unwrap();
+        self.sum_kern.set_arg("rows", rows as u32).unwrap();
+        self.sum_kern.set_arg("cols", cols as u32).unwrap();
+        self.sum_kern.set_arg("X", Some::<&ocl::Buffer<f32>>(&device_x)).unwrap();
+        self.sum_kern.set_arg("C", Some::<&ocl::Buffer<f32>>(&device_c)).unwrap();
+
+        unsafe {self.sum_kern.enq().unwrap();}
 
         device_c.read(&mut response).enq().unwrap();
         return response;
@@ -230,5 +406,34 @@ mod tests {
         let h = Mtx::new((4,1), vec![1.,2.,3.,4.]);
         let expected = Mtx::new((2,1), vec![30., 30.]);
         assert_eq!(expected, gpu.dot(&g, &h));
+    }
+
+    #[test]
+    fn test_sum() {
+        let a = mtx!{
+            (3, 4);
+            [0, 3, 6, 9,
+             1, 4, 7, 10,
+             2, 5, 8, 11]
+        };
+
+        let mut gpu = Oclot::new();
+
+        assert_eq!(gpu.sum_cols(&a), a.sum_cols());
+        assert_eq!(gpu.sum_rows(&a), a.sum_rows());
+    }
+
+    #[test]
+    fn test_transpose() {
+        let a = mtx!{
+            (3, 4);
+            [0, 3, 6, 9,
+             1, 4, 7, 10,
+             2, 5, 8, 11]
+        };
+
+        let mut gpu = Oclot::new();
+
+        assert_eq!(a.trans(), gpu.trans(&a));
     }
 }
