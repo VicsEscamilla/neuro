@@ -19,10 +19,11 @@ fn load_file(file: &str) -> Vec<f32> {
 }
 
 fn main() {
-    let train_x_original: Vec<f32> = load_file("data/mnist_train_X.npy");
-    let train_y_original: Vec<f32> = load_file("data/mnist_train_y.npy");
-    let test_x_original: Vec<f32> = load_file("data/mnist_test_X.npy");
-    let test_y_original: Vec<f32> = load_file("data/mnist_test_y.npy");
+    let path = format!("{}{}", env!("CARGO_MANIFEST_DIR"), "/examples/mnist/data");
+    let train_x_original: Vec<f32> = load_file(&format!("{}/{}", path, "mnist_train_X.npy"));
+    let train_y_original: Vec<f32> = load_file(&format!("{}/{}", path, "mnist_train_y.npy"));
+    let test_x_original: Vec<f32> = load_file(&format!("{}/{}", path, "mnist_test_X.npy"));
+    let test_y_original: Vec<f32> = load_file(&format!("{}/{}", path, "mnist_test_y.npy"));
 
     println!("train_X -> {}", train_x_original.len());
     println!("train_y -> {}", train_y_original.len());

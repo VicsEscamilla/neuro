@@ -15,4 +15,4 @@ Ultra naive classic neural network implementation in Rust
     cargo run --example xor
 
 ### MNIST
-    cargo run --example mnist
+    cargo run --example mnist --features opencl
