@@ -4,32 +4,23 @@ use super::Mtx;
 
 #[derive(Debug)]
 pub struct Oclot {
-    sum_pq: ocl::ProQue,
-    sum_kern: ocl::Kernel,
-    dot_pq: ocl::ProQue,
-    dot_kern: ocl::Kernel,
-    forward_pq: ocl::ProQue,
-    forward_kern: ocl::Kernel,
-    trans_pq: ocl::ProQue,
+    pq: ocl::ProQue,
     trans_kern: ocl::Kernel,
+    sum_kern: ocl::Kernel,
+    dot_kern: ocl::Kernel,
+    forward_kern: ocl::Kernel,
 }
 
 
 impl Oclot {
     pub fn new() -> Oclot {
-        let (dot_pq, dot_kern) = Oclot::init_dot();
-        let (forward_pq, forward_kern) = Oclot::init_forward();
-        let (sum_pq, sum_kern) = Oclot::init_sum();
-        let (trans_pq, trans_kern) = Oclot::init_transpose();
+        let (pq, trans_kern, sum_kern, dot_kern, forward_kern) = Oclot::init_kernels();
         Oclot {
-            sum_pq,
-            sum_kern,
-            dot_pq,
-            dot_kern,
-            forward_pq,
-            forward_kern,
-            trans_pq,
+            pq,
             trans_kern,
+            sum_kern,
+            dot_kern,
+            forward_kern,
         }
     }
 
@@ -79,26 +70,26 @@ impl Oclot {
 
 
     fn _dot(&mut self, m:usize, n:usize, k:usize, a:&Vec<f32>, b:&Vec<f32>) -> Vec<f32> {
-        self.dot_pq.set_dims([m, n]);
+        self.pq.set_dims([m, n]);
         let mut response: Vec<f32> = vec![0.0f32; m*n];
 
         let device_a = ocl::Buffer::builder()
-            .queue(self.dot_pq.queue().clone())
+            .queue(self.pq.queue().clone())
             .flags(ocl::MemFlags::new().read_only())
             .len(m*k)
             .copy_host_slice(&a)
             .build().unwrap();
 
         let device_b = ocl::Buffer::builder()
-            .queue(self.dot_pq.queue().clone())
+            .queue(self.pq.queue().clone())
             .flags(ocl::MemFlags::new().read_only())
             .len(n*k)
             .copy_host_slice(&b)
             .build().unwrap();
 
-        let device_c: ocl::Buffer<f32> = self.dot_pq.create_buffer().unwrap();
+        let device_c: ocl::Buffer<f32> = self.pq.create_buffer().unwrap();
 
-        self.dot_kern.set_default_global_work_size(*self.dot_pq.dims());
+        self.dot_kern.set_default_global_work_size(*self.pq.dims());
         self.dot_kern.set_arg("M", m as u32).unwrap();
         self.dot_kern.set_arg("N", n as u32).unwrap();
         self.dot_kern.set_arg("K", k as u32).unwrap();
@@ -113,82 +104,23 @@ impl Oclot {
     }
 
 
-    fn init_transpose() -> (ocl::ProQue, ocl::Kernel) {
-        static KERNEL_MTXDOT: &'static str = r#"
-        __kernel void transpose(const int rows, const int cols,
-                          const __global float* X,
-                          __global float* C) {
-
-            // Thread identifiers
-            const int globalRow = get_global_id(0); // Row ID of C
-            const int globalCol = get_global_id(1); // Col ID of C
-
-            if (globalRow < rows && globalCol < cols) {
-                C[globalCol*rows + globalRow] = X[globalRow*cols + globalCol];
-            }
-        }
-        "#;
+    fn init_kernels() -> (ocl::ProQue, ocl::Kernel, ocl::Kernel, ocl::Kernel, ocl::Kernel) {
+        let file = format!("{}/{}", env!("CARGO_MANIFEST_DIR"),"src/layers/gpu/kernel.cl");
+        let mut pb = ocl::Program::builder();
+        pb.src_file(file);
 
         let pq = ocl::ProQue::builder()
-                    .src(KERNEL_MTXDOT)
+                    .prog_bldr(pb)
                     .build().unwrap();
 
-        let kern = pq.kernel_builder("transpose")
+        let trans_kern = pq.kernel_builder("transpose")
             .arg_named("rows", 1 as u32)
             .arg_named("cols", 1 as u32)
             .arg_named("X", None::<&ocl::Buffer<f32>>)
             .arg_named("C", None::<&ocl::Buffer<f32>>)
             .build().unwrap();
 
-        (pq, kern)
-    }
-
-
-    fn init_sum() -> (ocl::ProQue, ocl::Kernel){
-        static KERNEL_MTXDOT: &'static str = r#"
-        void transpose(const int rows, const int cols,
-                          const __global float* X,
-                          __global float* C) {
-
-            // Thread identifiers
-            const int globalRow = get_global_id(0); // Row ID of C
-            const int globalCol = get_global_id(1); // Col ID of C
-
-            if (globalRow < rows && globalCol < cols) {
-                C[globalCol*rows + globalRow] = X[globalRow*cols + globalCol];
-            }
-        }
-
-        __kernel void sum(const int dim, const int rows, const int cols,
-                          const __global float* X,
-                          __global float* C) {
-
-            // Thread identifiers
-            const int globalRow = get_global_id(0); // Row ID of C
-            const int globalCol = get_global_id(1); // Col ID of C
-
-            C[globalRow*cols + globalCol] = X[globalRow*cols + globalCol];
-            barrier(CLK_LOCAL_MEM_FENCE);
-
-            for (int i = cols%2 ? cols/2 + 1 : cols/2; i > 0; i=i/2) {
-                if (globalCol < i && globalCol + i < cols) {
-                    float a = C[globalRow*cols + globalCol];
-                    float b = C[globalRow*cols + globalCol + i];
-                    C[globalRow*cols + globalCol] = a + b;
-                }
-
-                barrier(CLK_LOCAL_MEM_FENCE);
-            }
-
-            transpose(rows, cols, C, C);
-        }
-        "#;
-
-        let pq = ocl::ProQue::builder()
-                    .src(KERNEL_MTXDOT)
-                    .build().unwrap();
-
-        let kern = pq.kernel_builder("sum")
+        let sum_kern = pq.kernel_builder("sum")
             .arg_named("dim", 1 as u32)
             .arg_named("rows", 1 as u32)
             .arg_named("cols", 1 as u32)
@@ -196,24 +128,44 @@ impl Oclot {
             .arg_named("C", None::<&ocl::Buffer<f32>>)
             .build().unwrap();
 
-        (pq, kern)
+        let dot_kern = pq.kernel_builder("dot")
+            .arg_named("M", 1 as u32)
+            .arg_named("N", 1 as u32)
+            .arg_named("K", 1 as u32)
+            .arg_named("A", None::<&ocl::Buffer<f32>>)
+            .arg_named("B", None::<&ocl::Buffer<f32>>)
+            .arg_named("C", None::<&ocl::Buffer<f32>>)
+            .build().unwrap();
+
+        let fw_kern = pq.kernel_builder("forward")
+            .arg_named("M", 1 as u32)
+            .arg_named("N", 1 as u32)
+            .arg_named("K", 1 as u32)
+            .arg_named("X", None::<&ocl::Buffer<f32>>)
+            .arg_named("W", None::<&ocl::Buffer<f32>>)
+            .arg_named("B", None::<&ocl::Buffer<f32>>)
+            .arg_named("R", None::<&ocl::Buffer<f32>>)
+            .build().unwrap();
+
+        (pq, trans_kern, sum_kern, dot_kern, fw_kern)
     }
 
 
+
     fn _transpose(&mut self, rows:usize, cols:usize, x:&Vec<f32>) -> Vec<f32> {
-        self.trans_pq.set_dims([rows, cols]);
+        self.pq.set_dims([rows, cols]);
         let mut response: Vec<f32> = vec![0.0f32; rows*cols];
 
         let device_x = ocl::Buffer::builder()
-            .queue(self.dot_pq.queue().clone())
+            .queue(self.pq.queue().clone())
             .flags(ocl::MemFlags::new().read_only())
             .len(rows*cols)
             .copy_host_slice(&x)
             .build().unwrap();
 
-        let device_c: ocl::Buffer<f32> = self.trans_pq.create_buffer().unwrap();
+        let device_c: ocl::Buffer<f32> = self.pq.create_buffer().unwrap();
 
-        self.trans_kern.set_default_global_work_size(*self.trans_pq.dims());
+        self.trans_kern.set_default_global_work_size(*self.pq.dims());
         self.trans_kern.set_arg("rows", rows as u32).unwrap();
         self.trans_kern.set_arg("cols", cols as u32).unwrap();
         self.trans_kern.set_arg("X", Some::<&ocl::Buffer<f32>>(&device_x)).unwrap();
@@ -227,19 +179,19 @@ impl Oclot {
 
 
     fn _sum(&mut self, dim:usize, rows:usize, cols:usize, x:&Vec<f32>) -> Vec<f32> {
-        self.sum_pq.set_dims([rows, cols]);
+        self.pq.set_dims([rows, cols]);
         let mut response: Vec<f32> = vec![0.0f32; rows*cols];
 
         let device_x = ocl::Buffer::builder()
-            .queue(self.dot_pq.queue().clone())
+            .queue(self.pq.queue().clone())
             .flags(ocl::MemFlags::new().read_only())
             .len(rows*cols)
             .copy_host_slice(&x)
             .build().unwrap();
 
-        let device_c: ocl::Buffer<f32> = self.sum_pq.create_buffer().unwrap();
+        let device_c: ocl::Buffer<f32> = self.pq.create_buffer().unwrap();
 
-        self.sum_kern.set_default_global_work_size(*self.sum_pq.dims());
+        self.sum_kern.set_default_global_work_size(*self.pq.dims());
         self.sum_kern.set_arg("dim", dim as u32).unwrap();
         self.sum_kern.set_arg("rows", rows as u32).unwrap();
         self.sum_kern.set_arg("cols", cols as u32).unwrap();
@@ -253,117 +205,38 @@ impl Oclot {
     }
 
 
-    fn init_dot() -> (ocl::ProQue, ocl::Kernel){
-        static KERNEL_MTXDOT: &'static str = r#"
-        __kernel void dot(const int M, const int N, const int K,
-                              const __global float* A,
-                              const __global float* B,
-                              __global float* C) {
-
-            // Thread identifiers
-            const int globalRow = get_global_id(0); // Row ID of C (0..M)
-            const int globalCol = get_global_id(1); // Col ID of C (0..N)
-
-            // Compute a single element (loop over K)
-            float acc = 0.0f;
-            for (int k=0; k<K; k++) {
-                acc += A[k + globalRow*K] * B[globalCol + N*k];
-            }
-
-            // Store the result
-            C[globalCol + globalRow*N] = acc;
-        }
-        "#;
-
-        let pq = ocl::ProQue::builder()
-                    .src(KERNEL_MTXDOT)
-                    .build().unwrap();
-
-        let kern = pq.kernel_builder("dot")
-            .arg_named("M", 1 as u32)
-            .arg_named("N", 1 as u32)
-            .arg_named("K", 1 as u32)
-            .arg_named("A", None::<&ocl::Buffer<f32>>)
-            .arg_named("B", None::<&ocl::Buffer<f32>>)
-            .arg_named("C", None::<&ocl::Buffer<f32>>)
-            .build().unwrap();
-
-        (pq, kern)
-    }
-
-    fn init_forward() -> (ocl::ProQue, ocl::Kernel){
-        static KERNEL_FORWARD: &'static str = r#"
-        __kernel void forward(const int M, const int N, const int K,
-                              const __global float* X,
-                              const __global float* W,
-                              const __global float* B,
-                              __global float* R) {
-
-            // Thread identifiers
-            const int globalRow = get_global_id(0); // Row ID of C (0..M)
-            const int globalCol = get_global_id(1); // Col ID of C (0..N)
-
-            // Compute a single element (loop over K)
-            float acc = 0.0f;
-            for (int k=0; k<K; k++) {
-                acc += X[k + globalRow*K] * W[globalCol + N*k];
-            }
-
-            // Store the result
-            R[globalCol + globalRow*N] = acc + B[globalCol];
-        }
-        "#;
-
-        let pq = ocl::ProQue::builder()
-                    .src(KERNEL_FORWARD)
-                    .build().unwrap();
-
-        let kern = pq.kernel_builder("forward")
-            .arg_named("M", 1 as u32)
-            .arg_named("N", 1 as u32)
-            .arg_named("K", 1 as u32)
-            .arg_named("X", None::<&ocl::Buffer<f32>>)
-            .arg_named("W", None::<&ocl::Buffer<f32>>)
-            .arg_named("B", None::<&ocl::Buffer<f32>>)
-            .arg_named("R", None::<&ocl::Buffer<f32>>)
-            .build().unwrap();
-
-        (pq, kern)
-    }
-
-
     fn _forward(&mut self, m:usize, n:usize, k:usize, x:&Vec<f32>, w:&Vec<f32>, b:&Vec<f32>) -> Vec<f32> {
-        self.forward_pq.set_dims([m, n]);
+        self.pq.set_dims([m, n]);
         let mut response: Vec<f32> = vec![0.0f32; m*n];
 
         let device_x = ocl::Buffer::builder()
-            .queue(self.forward_pq.queue().clone())
+            .queue(self.pq.queue().clone())
             .flags(ocl::MemFlags::new().read_only())
             .len(m*k)
             .copy_host_slice(&x)
             .build().unwrap();
 
         let device_w = ocl::Buffer::builder()
-            .queue(self.forward_pq.queue().clone())
+            .queue(self.pq.queue().clone())
             .flags(ocl::MemFlags::new().read_only())
             .len(n*k)
             .copy_host_slice(&w)
             .build().unwrap();
 
         let device_b = ocl::Buffer::builder()
-            .queue(self.forward_pq.queue().clone())
+            .queue(self.pq.queue().clone())
             .flags(ocl::MemFlags::new().read_only())
             .len(n)
             .copy_host_slice(&b)
             .build().unwrap();
 
         let device_r = ocl::Buffer::builder()
-            .queue(self.forward_pq.queue().clone())
+            .queue(self.pq.queue().clone())
             .flags(ocl::MemFlags::new().read_only())
             .len(m*n)
             .build().unwrap();
 
-        self.forward_kern.set_default_global_work_size(*self.forward_pq.dims());
+        self.forward_kern.set_default_global_work_size(*self.pq.dims());
         self.forward_kern.set_arg("M", m as u32).unwrap();
         self.forward_kern.set_arg("N", n as u32).unwrap();
         self.forward_kern.set_arg("K", k as u32).unwrap();
