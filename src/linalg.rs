@@ -61,6 +61,12 @@ impl Mtx {
     }
 
 
+    pub fn size(&self) -> usize {
+        let (rows, cols) = self.shape();
+        rows*cols
+    }
+
+
     pub fn add(&self, other: &Self) -> Self {
         if self.shape != other.shape {
             panic!("invalid shape");
@@ -588,5 +594,17 @@ mod tests {
 
         let expected = mtx!{(4, 1); [-2, -4, 6, 4]};
         assert_eq!(expected, x.into_windows(2, 1).dot(&k));
+    }
+
+
+    #[test]
+    fn test_size() {
+        let x = mtx! {
+            (2, 5);
+            [1, 2, 3, 4, 5,
+             6, 7, 8, 9, 0]
+        };
+
+        assert_eq!(10, x.size());
     }
 }

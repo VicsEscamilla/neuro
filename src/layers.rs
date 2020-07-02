@@ -7,4 +7,5 @@ pub mod gpu;
 use super::{Mtx, mtx, Layer};
 
 pub use activation::Activation;
+pub use activation::prime;
 pub use dense::Dense;

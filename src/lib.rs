@@ -72,6 +72,9 @@ impl Neuro {
             let y_iter = epoch_y.chunks(y_cols*batch_size);
 
             for (x_batch, y_batch) in x_iter.zip(y_iter) {
+                if x_batch.len() % x_cols != 0 {
+                    println!("WARNING: batch_size is not multiple of input size");
+                }
                 let rows = x_batch.len()/x_cols;
                 let mini_x = Mtx::new((rows, x_cols), x_batch.to_vec());
                 let mini_y = Mtx::new((rows, y_cols), y_batch.to_vec());
@@ -181,8 +184,9 @@ impl Neuro {
         result.func(|&x|-x).add(&y)
 
         // Squared error?
+        // let activation = layers::Activation::Sigmoid;
         // result.func(|&x|-x).add(&y)
-        //       .prod(&result.func(prime(&self.activation)))
+        //       .prod(&result.func(layers::prime(&activation)))
     }
 
 }
