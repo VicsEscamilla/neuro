@@ -72,11 +72,6 @@ impl Layer for Dense {
             self.fw_output_buf = self.gpu.create_buffer(m*n);
         }
 
-        // REMOVE THESEEEEE
-        self.gpu.write_buffer(&self.weights.get_raw(), &mut self.w_buf);
-        self.gpu.write_buffer(&self.biases, &mut self.b_buf);
-        // *********
-
         let mut result = vec![0.; m*n];
         self.gpu.write_buffer(&x.get_raw(), &mut self.fw_input_buf);
         self.gpu.forward_buf(m, n, k, &self.fw_input_buf, &self.w_buf,
@@ -86,7 +81,7 @@ impl Layer for Dense {
         Mtx::new((m, n), result)
             .func(function(&self.activation))
 
-        // Good one!
+        // Backup plan!
         // self.gpu.forward(&x, &self.weights, &self.biases)
         //         .func(function(&self.activation))
     }
@@ -129,18 +124,9 @@ impl Layer for Dense {
                               &self.bw_w_trans_buf, &self.bw_output_buf);
         self.gpu.read_buffer(&self.bw_output_buf, &mut output);
 
-        // REMOVE THESEEEEE
-        let mut dw_tmp = self.dw.get_raw();
-        let mut db_tmp = self.db.get_raw();
-        self.gpu.read_buffer(&self.dw_buf, &mut dw_tmp);
-        self.gpu.read_buffer(&self.db_buf, &mut db_tmp);
-        self.dw = Mtx::new(self.dw.shape(), dw_tmp);
-        self.db = Mtx::new(self.db.shape(), db_tmp);
-        // *********
-
         Mtx::new((m, n), output).prod(&x.func(prime(&self.activation)))
 
-        // Good one!
+        // Backup plan!
         // let xtrans = self.gpu.trans(&x);
         // self.dw = self.gpu.dot(&xtrans, &delta);
         // self.db = self.gpu.sum_rows(&delta);
@@ -151,12 +137,18 @@ impl Layer for Dense {
 
 
     fn update(&mut self, rate: f32) {
-        // Good one!
-        self.weights = self.weights.add(&self.dw.func(|&x| x*rate));
-        self.biases = self.biases.iter()
-             .zip(&self.db.func(|x| x*rate).get_raw())
-             .map(|(&a, &b)| a+b)
-             .collect();
+        let (rows, cols) = self.weights.shape();
+        self.gpu.update_buf(rows, cols, rate, &self.dw_buf, &self.w_buf);
+
+        let (rows, cols) = (1, self.biases.len());
+        self.gpu.update_buf(rows, cols, rate, &self.db_buf, &self.b_buf);
+
+        // Backup plan!
+        // self.weights = self.weights.add(&self.dw.func(|&x| x*rate));
+        // self.biases = self.biases.iter()
+        //      .zip(&self.db.func(|x| x*rate).get_raw())
+        //      .map(|(&a, &b)| a+b)
+        //      .collect();
     }
 
 

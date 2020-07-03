@@ -103,6 +103,18 @@ __kernel void product(const int rows, const int cols,
 }
 
 
+__kernel void update(const int rows, const int cols, const float rate,
+        const __global float* delta, __global float* input) {
+    // Thread identifiers
+    const int globalRow = get_global_id(0); // Row ID of C
+    const int globalCol = get_global_id(1); // Col ID of C
+
+    if (globalRow < rows && globalCol < cols) {
+        input[globalRow*cols + globalCol] += delta[globalRow*cols + globalCol] * rate;
+    }
+}
+
+
 // THIS WONT WORK!! The problem is the global_id trying to match multiple dot products
 __kernel void backward(const int input_rows, const int input_cols,
                        const int delta_rows, const int delta_cols,

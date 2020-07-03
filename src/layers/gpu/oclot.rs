@@ -13,13 +13,14 @@ pub struct Oclot {
     backward_kern: ocl::Kernel,
     add_kern: ocl::Kernel,
     product_kern: ocl::Kernel,
+    update_kern: ocl::Kernel,
 }
 
 
 impl Oclot {
     pub fn new() -> Oclot {
         let (pq, trans_kern, sum_kern, dot_kern, forward_kern, backward_kern,
-             add_kern, product_kern) = Oclot::init_kernels();
+             add_kern, product_kern, update_kern) = Oclot::init_kernels();
         Oclot {
             pq,
             trans_kern,
@@ -28,7 +29,8 @@ impl Oclot {
             forward_kern,
             backward_kern,
             add_kern,
-            product_kern
+            product_kern,
+            update_kern
         }
     }
 
@@ -107,7 +109,7 @@ impl Oclot {
 
 
     fn init_kernels() -> (ocl::ProQue, ocl::Kernel, ocl::Kernel, ocl::Kernel,
-                          ocl::Kernel, ocl::Kernel, ocl::Kernel, ocl::Kernel) {
+                          ocl::Kernel, ocl::Kernel, ocl::Kernel, ocl::Kernel, ocl::Kernel) {
         let file = format!("{}/{}", env!("CARGO_MANIFEST_DIR"),"src/layers/gpu/kernel.cl");
         let mut pb = ocl::Program::builder();
         pb.src_file(file);
@@ -185,7 +187,16 @@ impl Oclot {
             .arg_named("C", None::<&ocl::Buffer<f32>>)
             .build().unwrap();
 
-        (pq, trans_kern, sum_kern, dot_kern, fw_kern, bw_kern, add_kern, product_kern)
+        let update_kern = pq.kernel_builder("update")
+            .arg_named("rows", 1 as u32)
+            .arg_named("cols", 1 as u32)
+            .arg_named("rate", 1.0 as f32)
+            .arg_named("delta", None::<&ocl::Buffer<f32>>)
+            .arg_named("input", None::<&ocl::Buffer<f32>>)
+            .build().unwrap();
+
+        (pq, trans_kern, sum_kern, dot_kern, fw_kern,
+         bw_kern, add_kern, product_kern, update_kern)
     }
 
 
@@ -476,6 +487,20 @@ impl Oclot {
         unsafe {self.product_kern.enq().unwrap();}
         self.pq.finish().unwrap();
     }
+
+
+    pub fn update_buf(&mut self, rows:usize, cols:usize, rate:f32,
+                   delta:&ocl::Buffer<f32>, input:&ocl::Buffer<f32>) {
+        self.pq.set_dims([rows, cols]);
+        self.update_kern.set_default_global_work_size(*self.pq.dims());
+        self.update_kern.set_arg("rows", rows as u32).unwrap();
+        self.update_kern.set_arg("cols", cols as u32).unwrap();
+        self.update_kern.set_arg("rate", rate as f32).unwrap();
+        self.update_kern.set_arg("delta", Some::<&ocl::Buffer<f32>>(&delta)).unwrap();
+        self.update_kern.set_arg("input", Some::<&ocl::Buffer<f32>>(&input)).unwrap();
+        unsafe {self.update_kern.enq().unwrap();}
+        self.pq.finish().unwrap();
+    }
 }
 
 
@@ -644,5 +669,25 @@ mod tests {
         gpu.read_buffer(&result_buf, &mut result);
 
         assert_eq!(a.prod(&b).get_raw(), result);
+    }
+
+
+    #[test]
+    fn test_update_buffer() {
+        let mut gpu = Oclot::new();
+        let (rows, cols) = (3, 2);
+        let a = Mtx::new((rows, cols), vec![1., 2., 3., 4., 5., 6.]);
+        let b = Mtx::new((rows, cols), vec![1., 2., 3., 4., 5., 6.]);
+        let mut result = vec![0.; rows*cols];
+
+        let a_buf = gpu.create_buffer(a.size());
+        let b_buf = gpu.create_buffer(b.size());
+
+        gpu.write_buffer(&a.get_raw(), &a_buf);
+        gpu.write_buffer(&b.get_raw(), &b_buf);
+        gpu.update_buf(rows, cols, 0.5, &a_buf, &b_buf);
+        gpu.read_buffer(&b_buf, &mut result);
+
+        assert_eq!(a.add(&b.func(|x|x*0.5)).get_raw(), result);
     }
 }
