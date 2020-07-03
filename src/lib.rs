@@ -5,6 +5,7 @@ pub mod layers;
 extern crate rand;
 
 use rand::seq::SliceRandom;
+use std::time::Instant;
 
 pub use linalg::Mtx;
 
@@ -26,7 +27,8 @@ pub enum NeuroError {
 
 pub struct Neuro {
     layers: Vec<Box<dyn Layer>>,
-    on_epoch_fn: Option<Box<dyn FnMut(u64, u64, f32, f32)>>,
+    on_epoch_fn: Option<Box<dyn FnMut(u64, u64)>>,
+    on_epoch_with_loss_fn: Option<Box<dyn FnMut(u64, u64, f32, f32)>>,
     is_initialized: bool
 }
 
@@ -36,6 +38,7 @@ impl Neuro {
         Neuro {
             layers: vec![],
             on_epoch_fn: None,
+            on_epoch_with_loss_fn: None,
             is_initialized: false
         }
     }
@@ -84,10 +87,14 @@ impl Neuro {
             }
 
             if self.on_epoch_fn.is_some() {
+                self.on_epoch_fn.as_mut().unwrap()(epoch, epochs);
+            }
+
+            if self.on_epoch_with_loss_fn.is_some() {
                 // calculate loss
                 let train_loss = self.get_loss(&x, &y);
                 let test_loss = self.get_loss(&test_x, &test_y);
-                self.on_epoch_fn.as_mut().unwrap()(epoch, epochs, train_loss, test_loss);
+                self.on_epoch_with_loss_fn.as_mut().unwrap()(epoch, epochs, train_loss, test_loss);
             }
         }
 
@@ -105,7 +112,13 @@ impl Neuro {
     }
 
 
-    pub fn on_epoch<F:FnMut(u64, u64, f32, f32) + 'static>(mut self, func: F) -> Self {
+    pub fn on_epoch_with_loss<F:FnMut(u64, u64, f32, f32) + 'static>(mut self, func: F) -> Self {
+        self.on_epoch_with_loss_fn = Some(Box::new(func));
+        self
+    }
+
+
+    pub fn on_epoch<F:FnMut(u64, u64) + 'static>(mut self, func: F) -> Self {
         self.on_epoch_fn = Some(Box::new(func));
         self
     }

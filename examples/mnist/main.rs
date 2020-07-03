@@ -36,32 +36,32 @@ fn main() {
     let test_y = mtx![(10000, 10); &test_y_original[0..10000*10]];
 
     let mut mnist_epochs: Vec<u64> = vec![];
-    let mut mnist_train_mse: Vec<f32> = vec![];
-    let mut mnist_test_mse: Vec<f32> = vec![];
+    let mut mnist_train_loss: Vec<f32> = vec![];
+    let mut mnist_test_loss: Vec<f32> = vec![];
     let mut fg = Figure::new();
 
     let mut now = Instant::now();
     let mut digit = Neuro::new()
         .add_layer(Dense::new(30, Activation::Sigmoid))
         .add_layer(Dense::new(10, Activation::Sigmoid))
-        .on_epoch(move |epoch, total_epochs, train_mse, test_mse| {
-            println!("[{}], epoch {} of {} -> train_mse: {}, test_mse: {}",
-                now.elapsed().as_millis(), epoch, total_epochs, train_mse, test_mse);
+        .on_epoch_with_loss(move |epoch, total_epochs, train_loss, test_loss| {
+            println!("[{}], epoch {} of {} -> train_loss: {}, test_loss: {}",
+                now.elapsed().as_millis(), epoch, total_epochs, train_loss, test_loss);
             mnist_epochs.push(epoch);
-            mnist_train_mse.push(train_mse);
-            mnist_test_mse.push(test_mse);
+            mnist_train_loss.push(train_loss);
+            mnist_test_loss.push(test_loss);
             fg.clear_axes();
             fg.axes2d()
                 .set_title("MNIST - loss", &[])
                 .set_legend(Graph(0.5), Graph(0.9), &[], &[])
                 .set_x_label("epochs", &[])
                 .set_y_label("loss", &[])
-                .lines(mnist_epochs.iter(), mnist_train_mse.iter(), &[Caption("Train MSE")])
-                .lines(mnist_epochs.iter(), mnist_test_mse.iter(), &[Caption("Test MSE")]);
+                .lines(mnist_epochs.iter(), mnist_train_loss.iter(), &[Caption("Train MSE")])
+                .lines(mnist_epochs.iter(), mnist_test_loss.iter(), &[Caption("Test MSE")]);
             fg.show().unwrap();
             now = Instant::now();
         })
-        .train(&train_x, &train_y, &test_x, &test_y, 0.1, 30, 100);
+        .train(&train_x, &train_y, &test_x, &test_y, 3.0, 30, 100);
 
     let mut successes = 0.;
     let total_tests = test_x.shape().0;

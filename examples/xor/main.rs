@@ -30,7 +30,7 @@ fn main() {
     let mut xor = Neuro::new()
         .add_layer(Dense::new(2, Activation::SigmoidSimple))
         .add_layer(Dense::new(1, Activation::SigmoidSimple))
-        .on_epoch(move |epoch, _total_epochs, train_mse, test_mse| {
+        .on_epoch_with_loss(move |epoch, _total_epochs, train_mse, test_mse| {
             if epoch % 10 != 0 {
                 return;
             }
