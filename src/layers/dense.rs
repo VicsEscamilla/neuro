@@ -62,8 +62,15 @@ impl Layer for Dense {
         self.biases = Mtx::new((1, cols), Dense::random_vector(cols));
     }
 
+
     fn input_size(&self) -> usize {
         self.neurons
+    }
+
+
+    fn error(&self, c:&Mtx, a:&Mtx, y:&Mtx) -> Mtx {
+        a.add(&y.func(|&x|-x))
+         .prod(&c.func(prime(&self.activation)))
     }
 
 }

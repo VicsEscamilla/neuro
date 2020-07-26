@@ -16,6 +16,7 @@ pub trait Layer {
     fn update(&mut self, rate: f32);
     fn initialize(&mut self, input_size: usize);
     fn input_size(&self) -> usize;
+    fn error(&self, c:&Mtx, a:&Mtx, y:&Mtx) -> Mtx;
 }
 
 
@@ -177,8 +178,9 @@ impl Neuro {
 
 
     fn backpropagation(&mut self, caches: &Vec<Mtx>, activations: &Vec<Mtx>, y:&Mtx) {
-        let result = activations.last().unwrap();
-        let mut delta = self.error(&result, y);
+        let a = activations.last().unwrap();
+        let c = caches.last().unwrap();
+        let mut delta = self.layers.last().unwrap().error(&c, &a, y);
         for i in (0..self.layers.len()).rev() {
             delta = self.layers[i].backward(&caches[i], &activations[i], &delta);
         }
@@ -189,13 +191,6 @@ impl Neuro {
         for layer in &mut self.layers {
             layer.update(rate);
         }
-    }
-
-
-    fn error(&self, result: &Mtx, y: &Mtx) -> Mtx {
-        let activation = layers::Activation::Sigmoid;
-        result.add(&y.func(|&x|-x))
-              .prod(&result.func(layers::prime(&activation)))
     }
 
 }

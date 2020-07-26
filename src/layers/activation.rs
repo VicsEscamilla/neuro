@@ -1,5 +1,3 @@
-use std::f32::consts::E;
-
 #[derive(Clone)]
 pub enum Activation {
     Sigmoid = 1,
@@ -27,7 +25,7 @@ pub fn prime(a: &Activation) -> impl Fn(&f32)->f32 {
 
 
 fn sigmoid(x: &f32) -> f32 {
-    1. / (1. + E.powf(-x))
+    1. / (1. + (-x).exp())
 }
 
 
@@ -54,9 +52,9 @@ fn relu(x: &f32) -> f32 {
 
 
 fn relu_prime(x: &f32) -> f32 {
-    if *x > 0. {
-        1.
-    } else {
+    if *x < 0. {
         0.
+    } else {
+        1.
     }
 }
