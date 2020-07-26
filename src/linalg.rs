@@ -1,5 +1,4 @@
 use std::f32::consts::E;
-use rayon::prelude::*;
 
 #[macro_export]
 macro_rules! mtx {
@@ -39,10 +38,10 @@ impl Mtx {
         Mtx {
             shape: (self.shape.1, self.shape.0),
             raw: (0..self.shape.1)
-                    .into_par_iter()
+                    .into_iter()
                     .flat_map(|i| {
                         (0..self.shape.0)
-                            .into_par_iter()
+                            .into_iter()
                             .map(move |j| self.raw[j*self.shape.1 + i])
                     }).collect()
         }
@@ -77,7 +76,7 @@ impl Mtx {
 
         Mtx {
             shape: (self.shape.0, self.shape.1),
-            raw: self.raw.par_iter()
+            raw: self.raw.iter()
                 .zip(&other.raw)
                 .map(|(&a, &b)| a + b)
                 .collect()
@@ -93,7 +92,7 @@ impl Mtx {
         Mtx {
             shape: self.shape,
             raw: (0..self.raw.len())
-                    .into_par_iter()
+                    .into_iter()
                     .map(|i| self.raw[i] + vec[i%vec.len()])
                     .collect()
         }
@@ -107,9 +106,9 @@ impl Mtx {
 
         Mtx {
             shape: (self.shape.0, other.shape.1),
-            raw: (0..self.shape.0).into_par_iter().flat_map(|i| {
-                        (0..other.shape.1).into_par_iter().map(move |j| {
-                            (0..self.shape.1).into_par_iter().map(|k| {
+            raw: (0..self.shape.0).into_iter().flat_map(|i| {
+                        (0..other.shape.1).into_iter().map(move |j| {
+                            (0..self.shape.1).into_iter().map(|k| {
                                 let a = i*self.shape.1+k;
                                 let b = k*other.shape.1+j;
                                 self.raw[a] * other.raw[b]
@@ -135,7 +134,7 @@ impl Mtx {
 
         Mtx {
             shape: (self.shape.0, self.shape.1),
-            raw: self.raw.par_iter()
+            raw: self.raw.iter()
                 .zip(&other.raw)
                 .map(|(&a, &b)| a * b)
                 .collect()
@@ -162,15 +161,15 @@ impl Mtx {
         if dim == 0 {
             Mtx {
                 shape:(rows, 1),
-                raw: (0..rows).into_par_iter().map(|i| {
-                        (0..cols).into_par_iter().map(move |j| self.raw[i*cols + j]).sum()
+                raw: (0..rows).into_iter().map(|i| {
+                        (0..cols).into_iter().map(move |j| self.raw[i*cols + j]).sum()
                     }).collect()
             }
         } else {
             Mtx {
                 shape:(1, cols),
-                raw: (0..cols).into_par_iter().map(|j| {
-                        (0..rows).into_par_iter().map(move |i| self.raw[i*cols + j]).sum()
+                raw: (0..cols).into_iter().map(|j| {
+                        (0..rows).into_iter().map(move |i| self.raw[i*cols + j]).sum()
                     }).collect()
             }
         }
@@ -196,8 +195,8 @@ impl Mtx {
         let cols = self.shape().1;
         Mtx {
             shape:self.shape,
-            raw: index.par_iter().flat_map(|i| {
-                        (0..cols).into_par_iter().map(move |j| self.raw[i*cols + j])
+            raw: index.iter().flat_map(|i| {
+                        (0..cols).into_iter().map(move |j| self.raw[i*cols + j])
                     }).collect()
         }
     }

@@ -40,13 +40,14 @@ fn main() {
     let mut mnist_test_loss: Vec<f32> = vec![];
     let mut fg = Figure::new();
 
+    let total = Instant::now();
     let mut now = Instant::now();
     let mut digit = Neuro::new()
         .add_layer(Dense::new(30, Activation::Sigmoid))
         .add_layer(Dense::new(10, Activation::Sigmoid))
         .on_epoch_with_loss(move |epoch, total_epochs, train_loss, test_loss| {
-            println!("[{}], epoch {} of {} -> train_loss: {}, test_loss: {}",
-                now.elapsed().as_millis(), epoch, total_epochs, train_loss, test_loss);
+            println!("[{:?}], epoch {} of {} -> train_loss: {}, test_loss: {}",
+                now.elapsed(), epoch, total_epochs, train_loss, test_loss);
             mnist_epochs.push(epoch);
             mnist_train_loss.push(train_loss);
             mnist_test_loss.push(test_loss);
@@ -62,6 +63,7 @@ fn main() {
             now = Instant::now();
         })
         .train(&train_x, &train_y, &test_x, &test_y, 3.0, 30, 100);
+    println!("Total time: {:?}", total.elapsed());
 
     let mut successes = 0.;
     let total_tests = test_x.shape().0;
