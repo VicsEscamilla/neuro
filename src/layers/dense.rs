@@ -1,4 +1,5 @@
 use rand::Rng;
+use rand::distributions::StandardNormal;
 use super::{Mtx, mtx, Layer, activation::{Activation, function, prime}};
 
 #[derive(Clone)]
@@ -6,7 +7,7 @@ pub struct Dense {
     neurons: usize,
     activation: Activation,
     weights: Mtx,
-    biases: Vec<f32>,
+    biases: Mtx,
     dw: Mtx,
     db: Mtx
 }
@@ -18,7 +19,7 @@ impl Dense {
             neurons,
             activation,
             weights: mtx![],
-            biases: vec![],
+            biases: mtx![],
             dw: mtx![],
             db: mtx![]
         })
@@ -26,40 +27,39 @@ impl Dense {
 
     fn random_vector(size: usize) -> Vec<f32> {
         let mut rng = rand::thread_rng();
-        vec![0.; size].iter().map(|_| rng.gen::<f32>()).collect()
+        rng.sample_iter(&StandardNormal)
+           .take(size).map(|x| x as f32).collect()
     }
 }
 
 
 impl Layer for Dense {
-    fn forward(&mut self, x: &Mtx) -> Mtx {
-        x.dot(&self.weights)
-         .add_vector(&self.biases)
-         .func(function(&self.activation))
+    fn forward(&mut self, x: &Mtx) -> (Mtx, Mtx) {
+        let c = x.dot(&self.weights)
+                 .add_vector(&self.biases.get_raw());
+        let a = c.func(function(&self.activation));
+        (c, a)
     }
 
 
-    fn backward(&mut self, x: &Mtx, delta:&Mtx) -> Mtx {
-        self.dw = x.trans().dot(&delta);
+    fn backward(&mut self, c: &Mtx, a: &Mtx, delta:&Mtx) -> Mtx {
+        self.dw = a.trans().dot(&delta);
         self.db = delta.sum_rows();
         delta.dot(&self.weights.trans())
-             .prod(&x.func(prime(&self.activation)))
+             .prod(&c.func(prime(&self.activation)))
     }
 
 
     fn update(&mut self, rate: f32) {
-        self.weights = self.weights.add(&self.dw.func(|&x| x*rate));
-        self.biases = self.biases.iter()
-             .zip(&self.db.func(|x| x*rate).get_raw())
-             .map(|(&a, &b)| a+b)
-             .collect();
+        self.weights = self.weights.add(&self.dw.func(|&x| -x*rate));
+        self.biases = self.biases.add(&self.db.func(|&x| -x*rate));
     }
 
 
     fn initialize(&mut self, input_size: usize) {
         let (rows, cols) = (input_size, self.neurons);
         self.weights = Mtx::new((rows, cols), Dense::random_vector(rows*cols));
-        self.biases = Dense::random_vector(cols);
+        self.biases = Mtx::new((1, cols), Dense::random_vector(cols));
     }
 
     fn input_size(&self) -> usize {

@@ -11,8 +11,8 @@ pub use linalg::Mtx;
 
 
 pub trait Layer {
-    fn forward(&mut self, x: &Mtx) -> Mtx;
-    fn backward(&mut self, x: &Mtx, delta:&Mtx) -> Mtx;
+    fn forward(&mut self, x: &Mtx) -> (Mtx, Mtx);
+    fn backward(&mut self, c: &Mtx, a: &Mtx, delta:&Mtx) -> Mtx;
     fn update(&mut self, rate: f32);
     fn initialize(&mut self, input_size: usize);
     fn input_size(&self) -> usize;
@@ -81,8 +81,8 @@ impl Neuro {
                 let rows = x_batch.len()/x_cols;
                 let mini_x = Mtx::new((rows, x_cols), x_batch.to_vec());
                 let mini_y = Mtx::new((rows, y_cols), y_batch.to_vec());
-                let activations = self.feedforward(&mini_x);
-                self.backpropagation(&activations, &mini_y);
+                let (caches, activations) = self.feedforward(&mini_x);
+                self.backpropagation(&caches, &activations, &mini_y);
                 self.update_model(learning_rate/rows as f32);
             }
 
@@ -107,7 +107,7 @@ impl Neuro {
             return Err(NeuroError::ModelNotTrained);
         }
 
-        let activations = self.feedforward(x);
+        let (_, activations) = self.feedforward(x);
         Ok(activations.last().unwrap().clone())
     }
 
@@ -126,29 +126,25 @@ impl Neuro {
 
     fn get_loss(&mut self, x:&Mtx, y:&Mtx) -> f32 {
         let prediction = &self.predict(&x).unwrap();
-        let (tests, classes) = y.shape();
+        let (tests, _) = y.shape();
+        // y.add(&prediction.func(|x|-x))
+		  // // Frobenius norm
+		  // .func(|x|x*x)
+		  // .sum_cols()
+		  // .sum_rows()
+		  // .func(|x|x.sqrt())
+		  // // end of Frobenius norm
+		  // .func(|x|0.5*x*x)
+		  // .func(|x|x/tests as f32)
+		  // .get_raw()[0]
 
-        // Cross-entropy
-        let first = y.prod(&prediction.func(|x| x.ln()));
-        let second = y.func(|x|1.-x)
-                      .prod(&prediction.func(|x| (1.-x).ln()));
-        first.add(&second)
-            .sum_cols()
-            .func(|x|x/classes as f32)
-            .sum_rows()
-            .func(|x|x/tests as f32)
-            .func(|x|-x)
-            .get_raw()[0]
-
-        // msr
-        // prediction.add(&y.func(|x|-x))
-        //     .func(|x|x*x)
-        //     .sum_cols()
-        //     .func(|x|x/classes as f32)
-        //     .func(|x|x.sqrt())
-        //     .sum_rows()
-        //     .func(|x|x/tests as f32)
-        //     .get_raw()[0]
+        y.add(&prediction.func(|x|-x))
+         .func(|x|x*x)
+         .sum_cols()
+         .func(|x|x/2.0 as f32)
+         .sum_rows()
+         .func(|x|x/tests as f32)
+         .get_raw()[0]
     }
 
 
@@ -166,21 +162,25 @@ impl Neuro {
     }
 
 
-    fn feedforward(&mut self, x: &Mtx) -> Vec<Mtx> {
+    fn feedforward(&mut self, x: &Mtx) -> (Vec<Mtx>, Vec<Mtx>) {
         let mut activations = Vec::with_capacity(self.layers.len()+1);
+        let mut caches = Vec::with_capacity(self.layers.len()+1);
+        caches.push(x.clone());
         activations.push(x.clone());
         for i in 0..self.layers.len() {
-            activations.push(self.layers[i].forward(&activations[i]));
+            let (c, a) = self.layers[i].forward(&activations[i]);
+            caches.push(c);
+            activations.push(a);
         }
-        activations
+        (caches, activations)
     }
 
 
-    fn backpropagation(&mut self, activations: &Vec<Mtx>, y:&Mtx) {
+    fn backpropagation(&mut self, caches: &Vec<Mtx>, activations: &Vec<Mtx>, y:&Mtx) {
         let result = activations.last().unwrap();
         let mut delta = self.error(&result, y);
         for i in (0..self.layers.len()).rev() {
-            delta = self.layers[i].backward(&activations[i], &delta);
+            delta = self.layers[i].backward(&caches[i], &activations[i], &delta);
         }
     }
 
@@ -193,13 +193,9 @@ impl Neuro {
 
 
     fn error(&self, result: &Mtx, y: &Mtx) -> Mtx {
-        // Cross-entropy?
-        result.func(|&x|-x).add(&y)
-
-        // Squared error?
-        // let activation = layers::Activation::Sigmoid;
-        // result.func(|&x|-x).add(&y)
-        //       .prod(&result.func(layers::prime(&activation)))
+        let activation = layers::Activation::Sigmoid;
+        result.add(&y.func(|&x|-x))
+              .prod(&result.func(layers::prime(&activation)))
     }
 
 }
